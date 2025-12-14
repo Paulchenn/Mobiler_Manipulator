@@ -1,0 +1,18 @@
+# --- Core Libraries ---
+numpy
+matplotlib
+scipy
+
+# --- Jupyter Environment ---
+notebook
+jupyterlab
+# ipympl is often needed for interactive plots in Jupyter
+ipympl
+
+# --- Collision Detection / Geometry (Optional) ---
+# Depending on your implementation, you might use Shapely
+shapely
+
+# --- Image Processing (Optional) ---
+# Often used for handling map images
+Pillow
