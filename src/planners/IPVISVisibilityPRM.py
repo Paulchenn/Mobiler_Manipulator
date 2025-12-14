@@ -7,7 +7,7 @@ License is based on Creative Commons: Attribution-NonCommercial 4.0 Internationa
 """
 
 import networkx as nx
-def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300):
+def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300, plot_only_solution=True):
     # get a list of positions of all nodes by returning the content of the attribute 'pos'
     graph = planner.graph
     statsHandler = planner.statsHandler
@@ -18,26 +18,29 @@ def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300):
 
     collChecker.drawObstacles(ax)
     
-    if statsHandler:
+    if not plot_only_solution: #statsHandler:
         statPos = nx.get_node_attributes(statsHandler.graph,'pos')
         statPos_xy  = {k: v[:2] for k, v in statPos.items()}
         nx.draw_networkx_nodes(statsHandler.graph, pos=statPos_xy, ax=ax, alpha=0.2, node_size=nodeSize)
         nx.draw_networkx_edges(statsHandler.graph, pos=statPos_xy, ax=ax, alpha=0.2, edge_color='y')
         
     # draw graph 
-    nx.draw_networkx_nodes(graph, pos_xy, ax = ax, nodelist=list(color.keys()), node_color=list(color.values()), node_size=nodeSize)
-    nx.draw_networkx_edges(graph, pos_xy, ax = ax)
+    if not plot_only_solution:
+        nx.draw_networkx_nodes(graph, pos_xy, ax = ax, nodelist=list(color.keys()), node_color=list(color.values()), node_size=nodeSize)
+        nx.draw_networkx_edges(graph, pos_xy, ax = ax)
     
     Gcc = sorted(nx.connected_components(graph), key=len, reverse=True)
     G0=graph.subgraph(Gcc[0])# = largest connected component
 
     # how largest connected component
-    nx.draw_networkx_edges(G0, pos_xy, edge_color='b', width=2.0, ax = ax)
+    if not plot_only_solution:
+        nx.draw_networkx_edges(G0, pos_xy, edge_color='b', width=2.0, ax = ax)
     
     # get nodes based on solution path
     Gsp = nx.subgraph(graph,solution)
 
-    # draw edges based on solution path
+    # draw path based on solution path
+    nx.draw_networkx_nodes(Gsp, pos_xy, ax=ax, alpha=0.8, node_size=nodeSize)
     nx.draw_networkx_edges(Gsp, pos_xy, ax=ax, alpha=0.8, edge_color='g', width=5.0, label="Solution Path")
         
     # draw start and goal
@@ -47,4 +50,28 @@ def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300):
     if "goal" in graph.nodes():
         nx.draw_networkx_nodes(graph, pos_xy, nodelist=["goal"], node_size=nodeSize, node_color='#dd0000',  ax=ax)
         nx.draw_networkx_labels(graph, pos_xy, labels={"goal": "G"},  ax=ax)
+
+    # --- LÖSUNGSPFAD ---
+    if solution != []:
+        # draw nodes based on solution path
+        Gsp = nx.subgraph(graph, solution)
+        # draw edges based on solution path
+        nx.draw_networkx_edges(Gsp, pos_xy, ax=ax, alpha=0.8, edge_color='g', width=8) # War width=10
+        
+        # --- NEU: Roboter entlang des Pfades zeichnen ---
+        # Wir iterieren über jeden Knoten im Lösungspfad
+        for i, node_id in enumerate(solution):
+            # 1. Volle 5D-Konfiguration holen
+            full_config = graph.nodes[node_id]['pos']
+            
+            # 2. Styling: Start und Ziel deckend, dazwischen transparent
+            if i == 0 or i == len(solution) - 1:
+                current_alpha = 1
+            else:
+                current_alpha = 0.5 # Sehr transparent, damit man den Graphen noch sieht
+            
+            # 3. Roboter zeichnen lassen
+            collChecker.drawRobot(full_config, ax, alpha=current_alpha)
+    
+    return
 
