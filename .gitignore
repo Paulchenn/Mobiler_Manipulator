@@ -1,0 +1,49 @@
+# --- Python Basics ---
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtual Environments ---
+# It is crucial not to upload your local environment folder
+venv/
+env/
+.venv/
+.env
+
+# --- Jupyter Notebooks ---
+# Checkpoints are auto-generated and clutter the repo
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+# Optional: IPython profile configuration
+profile_default/
+ipython_config.py
+
+# --- IDE / Editor Settings ---
+# VS Code
+.vscode/
+# PyCharm / IntelliJ
+.idea/
+# Vim / Nano
+*.swp
+*.swo
+
+# --- OS System Files ---
+.DS_Store
+Thumbs.db
+
+# --- Project Specifics / Output ---
+# Ignore large video files or generated animations if you don't want them in the repo
+# (You might want to keep gifs if they are small enough for the README)
+output/
+*.mp4
+*.avi
+*.mov
+
+# Temporary data or testing logs
+tmp/
+temp/
+*.log
+
+# Documentation builds (if applicable)
+site/
