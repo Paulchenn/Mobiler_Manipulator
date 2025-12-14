@@ -143,3 +143,21 @@ class CollisionChecker:
             sx, sy = seg.exterior.xy
             ax.fill(sx, sy, alpha=0.7, fc='orange', ec='black')
         ax.set_aspect('equal')
+
+    def drawRobot(self, config, ax, alpha=0.3, color='blue'):
+        """
+        Zeichnet nur den Roboter an der gegebenen Konfiguration.
+        Wird von den IPVIS-Funktionen genutzt, um den Pfad darzustellen.
+        """
+        geo = self.get_robot_geometry(config)
+        
+        # 1. Basis zeichnen
+        bx, by = geo['base'].exterior.xy
+        # Wir nutzen 'fc' (facecolor) für Füllung und 'ec' (edgecolor) für den Rand
+        ax.fill(bx, by, fc=color, alpha=alpha, ec='black', linewidth=1)
+        
+        # 2. Arm zeichnen
+        for seg in geo['arm_segments']:
+            sx, sy = seg.exterior.xy
+            # Arm machen wir immer orange-ish, oder passen es an
+            ax.fill(sx, sy, fc='orange', alpha=alpha, ec='black', linewidth=1)
