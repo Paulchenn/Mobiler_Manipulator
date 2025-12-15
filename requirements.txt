@@ -3,6 +3,7 @@ numpy
 pandas
 scipy
 networkx
+sympy
 
 # --- Visualization ---
 matplotlib
