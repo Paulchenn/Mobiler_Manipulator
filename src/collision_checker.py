@@ -9,17 +9,25 @@ class CollisionChecker:
     Fully compatible with HKA IP-Planners (LazyPRM, VisibilityPRM).
     """
 
-    def __init__(self, base_shape, arm_config, arm_base_offset=(0, 0), limits=[0.0, 22.0]):
+    def __init__(self, base_shape, arm_config, arm_base_offset=(0, 0), base_center=None, limits=[0.0, 22.0], intersect_limit=0.05, check_self_collision_flag=True):
         self.base_shape_def = base_shape
         self.arm_config = arm_config
         self.arm_base_offset = arm_base_offset
+        if base_center is None:
+            print(f"[CollisionChecker]: No base center set - using (0,0)")
+            self.base_center = (0,0)
+        else:
+            # print(f"[CollisionChecker]: Base center set - using {base_center}")
+            self.base_center = base_center
         self.obstacles = []
-        self.check_self_collision_flag = True
+        self.check_self_collision_flag = check_self_collision_flag
+
+        self.intersect_limit = intersect_limit
         
         # Default Limits (will be overwritten from Notebook)
         # Format: [[min, max], [min, max], ...] for 5 Dimensions
         self.limits = [limits] * self.getDim()
-        # print(f"[CollisionChecker]: self.limits: {self.limits}")
+        print(f"[CollisionChecker]: self.limits: {self.limits}; self.check_self_collision_flag: {self.check_self_collision_flag}")
 
     # --- HKA Planner Interface Requirements ---
 
@@ -36,34 +44,62 @@ class CollisionChecker:
         self.limits = limits
 
     def pointInCollision(self, config):
-        """Checks if a config is valid (Collision & Joint Limits)."""
-        # 1. Check Joint Limits first (fastest)
+        """Checks if a config is valid (Collision, Joint Limits & Workspace Boundaries)."""
+        
+        # 1. Check Joint Limits (Arm specific) - fastest check first
         joint_angles = config[3:]
         for i, segment in enumerate(self.arm_config):
             limits = segment[2]
             if not (limits[0] <= joint_angles[i] <= limits[1]):
                 return True
-
-        # 2. Geometry Check
+            
+        # 2. Geometry Calculation (for all further checks needed)
         geo = self.get_robot_geometry(config)
-        
-        # Combine all parts
         robot_parts = [geo['base']] + geo['arm_segments']
 
-        # 3. Obstacles
+        # 3. Geometric workspace limits check
+        # Checks whether any part of the robot (bounding box) leaves the boundaries.
+        if self.limits is not None:
+            # We assume that self.limits[0] = X limits and self.limits[1] = Y limits.
+            x_lim = self.limits[0]
+            y_lim = self.limits[1]
+            
+            for part in robot_parts:
+                # part.bounds gibt (minx, miny, maxx, maxy) zurück
+                minx, miny, maxx, maxy = part.bounds
+                
+                # Check X
+                if minx < x_lim[0] or maxx > x_lim[1]:
+                    return True
+                # Check Y
+                if miny < y_lim[0] or maxy > y_lim[1]:
+                    return True
+
+        # 3. Obstacles check
         for part in robot_parts:
             for obs in self.obstacles:
                 if part.intersects(obs):
                     return True
 
         # 4. Self Collision
+        def print_inter_areas(inter_areas):
+            print(f"Intersection areas (limit={self.intersect_limit}):")
+            for i, inter_area in enumerate(inter_areas):
+                if i == 0:
+                    print(f"    base  -> arm_{i+1}: {inter_area:.4f}")
+                else:
+                    print(f"    arm_{i} -> arm_{i+1}: {inter_area:.4f}")
         if self.check_self_collision_flag:
             base = geo['base']
+            inter_areas = []
             for seg in geo['arm_segments']:
                 if seg.intersects(base):
                     # Ignore touching contact at joint (area ~ 0)
-                    if seg.intersection(base).area > 0.001:
+                    inter_areas.append(seg.intersection(base).area)
+                    if seg.intersection(base).area > self.intersect_limit:
+                        # print_inter_areas(inter_areas)
                         return True
+            # print_inter_areas(inter_areas)
         return False
 
     def lineInCollision(self, config1, config2, step_size=0.2):
@@ -87,25 +123,41 @@ class CollisionChecker:
     def set_obstacles(self, obstacle_list):
         self.obstacles = [Polygon(obs) for obs in obstacle_list]
 
-    def toggle_self_collision(self, active: bool):
-        self.check_self_collision_flag = active
-
     def get_robot_geometry(self, config):
         x, y, theta = config[0:3]
         joint_angles = config[3:]
 
-        # Base
+        # 1. Base Geometry
+        # Here you use shapely ‘rotate’ with your custom origin.
+        # print(self.base_center)
         base_poly = Polygon(self.base_shape_def)
-        base_poly = rotate(base_poly, theta, origin=(0, 0), use_radians=True)
-        base_poly = translate(base_poly, xoff=x, yoff=y)
+        base_poly = rotate(base_poly, theta, origin=(self.base_center), use_radians=True)
+        base_poly = translate(base_poly, xoff=x-self.base_center[0], yoff=y-self.base_center[1])
 
-        # Arm
+        # 2. Arm Geometry Calculation
         arm_polys = []
-        ox, oy = self.arm_base_offset
+
+        # Get local coordinates
+        ox, oy = self.arm_base_offset   # Where is the arm attached?
+        cx, cy = self.base_center       # What does the robot revolve around?
+        
+        # Calculate vector from center of rotation to arm starting point
+        dx = ox - cx
+        dy = oy - cy
+
+        # Prepare rotation
         cos_t = np.cos(theta)
         sin_t = np.sin(theta)
-        current_x = x + (ox * cos_t - oy * sin_t)
-        current_y = y + (ox * sin_t + oy * cos_t)
+
+        # Rotate the vector (dx, dy)
+        rotated_dx = dx * cos_t - dy * sin_t
+        rotated_dy = dx * sin_t + dy * cos_t
+
+        # Calculate new starting position:
+        # World position (x, y) + Local center of rotation (cx, cy) + Rotated vector
+        # (Since Shapely's ‘translate’ moves the polygon by (x,y), we must do the same here)
+        current_x = x + cx + rotated_dx - self.base_center[0]
+        current_y = y + cy + rotated_dy - self.base_center[1]
         current_angle = theta
 
         for i, segment in enumerate(self.arm_config):
