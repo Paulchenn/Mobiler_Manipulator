@@ -57,6 +57,9 @@ class IPAnimator:
         Returns:
             HTML object containing the JS animation.
         """        
+
+        plt.rcParams['animation.embed_limit'] = 100
+
         # A. Path Validation & Extraction
         planner = result.planner
         solution = result.solution
