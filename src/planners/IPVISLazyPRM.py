@@ -9,7 +9,7 @@ License is based on Creative Commons: Attribution-NonCommercial 4.0 Internationa
 import networkx as nx
 
 
-def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=300, plot_only_solution=True):
+def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=20, plot_only_solution=True, plot_robot=True):
     graph = planner.graph.copy()
     collChecker = planner._collisionChecker
     collEdges = planner.collidingEdges
@@ -36,19 +36,22 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=300, plot_only_solu
         nx.draw_networkx_nodes(graph, pos_xy, ax=ax, 
                            nodelist=all_nodes, 
                            node_color=node_colors, 
-                           node_size=nodeSize)
+                           node_size=nodeSize,
+                           alpha=0.5
+                           )
 
     # --- KANTEN ZEICHNEN ---
     # Alle Kanten (Basis in schwarz)
     if not plot_only_solution:
-        nx.draw_networkx_edges(graph, pos_xy, ax=ax)
+        nx.draw_networkx_edges(graph, pos_xy, ax=ax, alpha=0.1, width=0.2)
 
     # Größte verbundene Komponente hervorheben (blau gestrichelt)
     try:
         Gcc = (graph.subgraph(c) for c in nx.connected_components(graph))
         G0 = next(Gcc) 
         if not plot_only_solution:
-            nx.draw_networkx_edges(G0, pos_xy, ax=ax, edge_color='b', width=3.0, style='dashed', alpha=0.5)
+            # nx.draw_networkx_edges(G0, pos_xy, ax=ax, edge_color='b', width=1.0, style='dashed', alpha=0.4)
+            pass
     except StopIteration:
         pass # Graph ist leer
 
@@ -59,7 +62,7 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=300, plot_only_solu
         for i in collEdges:
             collGraph.add_edge(i[0], i[1])
         if not plot_only_solution:
-            nx.draw_networkx_edges(collGraph, pos_xy, ax=ax, alpha=0.2, edge_color='r', width=5)
+            nx.draw_networkx_edges(collGraph, pos_xy, ax=ax, alpha=0.8, edge_color='r', width=1)
 
     # Freie Kanten (Gelb)
     if nonCollEdges:
@@ -68,7 +71,7 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=300, plot_only_solu
         for i in nonCollEdges:
             nonCollGraph.add_edge(i[0], i[1])
         if not plot_only_solution:
-            nx.draw_networkx_edges(nonCollGraph, pos_xy, ax=ax, alpha=0.8, edge_color='gold', width=5)
+            nx.draw_networkx_edges(nonCollGraph, pos_xy, ax=ax, alpha=0.8, edge_color='gold', width=1)
     
     # --- START / ZIEL ---
     if "start" in graph.nodes(): 
@@ -84,8 +87,8 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=300, plot_only_solu
         # draw nodes based on solution path
         Gsp = nx.subgraph(graph, solution)
         # draw edges based on solution path
-        nx.draw_networkx_nodes(Gsp, pos_xy, ax=ax, alpha=0.8, node_size=nodeSize)
-        nx.draw_networkx_edges(Gsp, pos_xy, ax=ax, alpha=0.8, edge_color='g', width=8) # War width=10
+        nx.draw_networkx_nodes(Gsp, pos_xy, ax=ax, alpha=1, node_size=nodeSize)
+        nx.draw_networkx_edges(Gsp, pos_xy, ax=ax, alpha=1, edge_color='g', width=3) # War width=10
         
         # --- NEU: Roboter entlang des Pfades zeichnen ---
         # Wir iterieren über jeden Knoten im Lösungspfad
@@ -100,7 +103,8 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=300, plot_only_solu
                 current_alpha = 0.15 # Sehr transparent, damit man den Graphen noch sieht
             
             # 3. Roboter zeichnen lassen
-            collChecker.drawRobot(full_config, ax, alpha=current_alpha)
+            if plot_robot:
+                collChecker.drawRobot(full_config, ax, alpha=current_alpha)
     
     return
 
