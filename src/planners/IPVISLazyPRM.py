@@ -14,6 +14,11 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=20, plot_only_solut
     collChecker = planner._collisionChecker
     collEdges = planner.collidingEdges
     nonCollEdges = planner.nonCollidingEdges
+    # print("-"*20)
+    # print(solution)
+    # print(collEdges)
+    # print(nonCollEdges)
+    # print("-"*20)
     
     # 1. Positionen extrahieren und auf 2D (x,y) projizieren
     # Das ist wichtig für die 5D->2D Darstellung
@@ -98,9 +103,9 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=20, plot_only_solut
             
             # 2. Styling: Start und Ziel deckend, dazwischen transparent
             if i == 0 or i == len(solution) - 1:
-                current_alpha = 0.8
+                current_alpha = 1
             else:
-                current_alpha = 0.15 # Sehr transparent, damit man den Graphen noch sieht
+                current_alpha = 0.5 # Sehr transparent, damit man den Graphen noch sieht
             
             # 3. Roboter zeichnen lassen
             if plot_robot:

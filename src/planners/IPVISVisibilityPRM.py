@@ -28,12 +28,11 @@ def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300, plot_on
     if not plot_only_solution:
         nx.draw_networkx_nodes(graph, pos_xy, ax = ax, nodelist=list(color.keys()), node_color=list(color.values()), node_size=nodeSize, alpha=0.5)
         nx.draw_networkx_edges(graph, pos_xy, ax = ax, alpha=0.1, width=0.2)
-    
-    Gcc = sorted(nx.connected_components(graph), key=len, reverse=True)
-    G0=graph.subgraph(Gcc[0])# = largest connected component
 
     # how largest connected component
-    if not plot_only_solution:
+    if not plot_only_solution and solution!=[]:
+        Gcc = sorted(nx.connected_components(graph), key=len, reverse=True)
+        G0=graph.subgraph(Gcc[0])# = largest connected component
         # nx.draw_networkx_edges(G0, pos_xy, edge_color='b', width=2.0, ax = ax)
         pass
     
@@ -51,6 +50,10 @@ def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300, plot_on
     # --- LÖSUNGSPFAD ---
     if solution != []:
         Gsp = nx.subgraph(graph, solution)
+        # print("-"*20)
+        # print(solution)
+        # print(Gsp)
+        # print("-"*20)
         # draw nodes based on solution path
         nx.draw_networkx_nodes(Gsp, pos_xy, ax=ax, alpha=1, node_size=nodeSize)
         # draw edges based on solution path
