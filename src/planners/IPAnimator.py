@@ -89,7 +89,7 @@ class IPAnimator:
         # B. Interpolation
         full_trajectory = IPAnimator._get_interpolated_path(config_path, step_size=step_size)
         
-        print(f"Generating Animation for '{result.benchmark.name}' ({len(full_trajectory)} frames)...")
+        print(f"Generating Animation for '{result.plannerFactoryName} - {result.benchmark.name}' ({len(full_trajectory)} frames)...")
 
         # C. Setup Figure
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
@@ -136,5 +136,5 @@ class IPAnimator:
             return []
 
         # E. Render
-        ani = FuncAnimation(fig, update, frames=len(full_trajectory), interval=interval)
+        ani = FuncAnimation(fig, update, frames=len(full_trajectory), interval=interval, repeat_delay=1.0)
         return HTML(ani.to_jshtml())
