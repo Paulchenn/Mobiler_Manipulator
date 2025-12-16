@@ -7,7 +7,7 @@ License is based on Creative Commons: Attribution-NonCommercial 4.0 Internationa
 """
 
 import networkx as nx
-def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300, plot_only_solution=True, plot_robot=True):
+def visibilityPRMVisualize(planner, solution, actions, ax = None, nodeSize = 300, plot_only_solution=True, plot_robot=True):
     # get a list of positions of all nodes by returning the content of the attribute 'pos'
     graph = planner.graph
     statsHandler = planner.statsHandler
@@ -15,6 +15,8 @@ def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300, plot_on
     pos = nx.get_node_attributes(graph,'pos')
     pos_xy  = {k: v[:2] for k, v in pos.items()}
     color = nx.get_node_attributes(graph,'color')
+    # print(dir(planner))
+    object_shape = getattr(planner, 'objectShape', None)
 
     collChecker.drawObstacles(ax)
     
@@ -51,8 +53,7 @@ def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300, plot_on
     if solution != []:
         Gsp = nx.subgraph(graph, solution)
         # print("-"*20)
-        # print(solution)
-        # print(Gsp)
+        # print(actions[2])
         # print("-"*20)
         # draw nodes based on solution path
         nx.draw_networkx_nodes(Gsp, pos_xy, ax=ax, alpha=1, node_size=nodeSize)
@@ -62,6 +63,18 @@ def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300, plot_on
         # --- NEU: Roboter entlang des Pfades zeichnen ---
         # Wir iterieren über jeden Knoten im Lösungspfad
         for i, node_id in enumerate(solution):
+            try:
+                if i == 0:
+                    collChecker.detach_object()
+                    action = 'MOVE'
+                else:
+                    action = actions[i-1][0]
+            except:
+                action = 'MOVE'
+            # print("-"*20)
+            # print(action)
+            # print("-"*20)
+
             # 1. Volle 5D-Konfiguration holen
             full_config = graph.nodes[node_id]['pos']
             # print(full_config)
@@ -74,7 +87,7 @@ def visibilityPRMVisualize(planner, solution, ax = None, nodeSize = 300, plot_on
             
             # 3. Roboter zeichnen lassen
             if plot_robot:
-                collChecker.drawRobot(full_config, ax, alpha=current_alpha)
+                collChecker.drawRobot(full_config, ax, alpha=current_alpha, action=action)
     
     return
 

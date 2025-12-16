@@ -9,7 +9,7 @@ License is based on Creative Commons: Attribution-NonCommercial 4.0 Internationa
 import networkx as nx
 
 
-def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=20, plot_only_solution=True, plot_robot=True):
+def lazyPRMVisualize(planner, solution, actions, ax=None, nodeSize=20, plot_only_solution=True, plot_robot=True):
     graph = planner.graph.copy()
     collChecker = planner._collisionChecker
     collEdges = planner.collidingEdges
@@ -98,6 +98,18 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=20, plot_only_solut
         # --- NEU: Roboter entlang des Pfades zeichnen ---
         # Wir iterieren über jeden Knoten im Lösungspfad
         for i, node_id in enumerate(solution):
+            try:
+                if i == 0:
+                    collChecker.detach_object()
+                    action = 'MOVE'
+                else:
+                    action = actions[i-1][0]
+            except:
+                action = 'MOVE'
+            # print("-"*20)
+            # print(action)
+            # print("-"*20)
+
             # 1. Volle 5D-Konfiguration holen
             full_config = graph.nodes[node_id]['pos']
             
@@ -109,7 +121,7 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=20, plot_only_solut
             
             # 3. Roboter zeichnen lassen
             if plot_robot:
-                collChecker.drawRobot(full_config, ax, alpha=current_alpha)
+                collChecker.drawRobot(full_config, ax, alpha=current_alpha, action=action)
     
     return
 
