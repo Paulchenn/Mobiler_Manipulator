@@ -82,17 +82,19 @@ class CollisionChecker:
         # 2. Geometry Calculation
         geo = self.get_robot_geometry(config)
         robot_parts = [geo['base']] + geo['arm_segments']
+        robot_parts_wGripper = robot_parts + [geo['gripper']] if geo['gripper'] is not None else robot_parts
         
         # ### NEU: Objekt zur Liste der zu prüfenden Teile hinzufügen ###
         if geo['held_object'] is not None:
             robot_parts.append(geo['held_object'])
+            robot_parts_wGripper.append(geo['held_object'])
 
         # 3. Geometric workspace limits check
         if self.limits is not None:
             x_lim = self.limits[0]
             y_lim = self.limits[1]
             
-            for part in robot_parts:
+            for part in robot_parts_wGripper:
                 minx, miny, maxx, maxy = part.bounds
                 if minx < x_lim[0] or maxx > x_lim[1]:
                     return True
@@ -100,7 +102,7 @@ class CollisionChecker:
                     return True
 
         # 4. Obstacles check
-        for part in robot_parts:
+        for part in robot_parts_wGripper:
             for obs in self.obstacles:
                 if part.intersects(obs):
                     return True
