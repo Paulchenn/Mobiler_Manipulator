@@ -7,9 +7,10 @@ License is based on Creative Commons: Attribution-NonCommercial 4.0 Internationa
 """
 
 class ResultCollection (object):
-    def __init__(self, plannerFactoryName, planner, benchmark, solution, perfDataFrame):
+    def __init__(self, plannerFactoryName, planner, benchmark, solution, actions, perfDataFrame):
         self.plannerFactoryName = plannerFactoryName
         self.planner = planner
         self.benchmark = benchmark
         self.solution = solution
+        self.actions = actions
         self.perfDataFrame = perfDataFrame

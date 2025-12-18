@@ -26,12 +26,18 @@ INTERSECT_LIMITS = 0.002
 # START GOAL DEFINITION
 # --------------------------------------------------------------------------------
 START = [[-3.0, -4.0, 0.0, np.pi/4, -np.pi/4]]
-GOAL  = [[2.0, 3.0, 0.0, np.pi/2, -np.pi/4], [3.0, -4.0, 0.0, 0.0, -np.pi/2]]
+# Format: (Koordinate, "AKTION", Rückzugsstrategie)
+# Aktion: "PICK", "PLACE", "MOVE"
+GOAL = [
+    ([2.0, 3.0, 0.0, np.pi/2, -np.pi/2],   "PICK",  [0.6, 0.0]),   # Fahr hin und greif was
+    ([3.0, -4.0, 0.0, 0.0, -np.pi/2],      "PLACE", [0.0, -0.6]),   # Fahr woanders hin und leg es ab
+    ([-3.0, -4.0, 0.0, np.pi/4, -np.pi/4], "MOVE")   # Fahr woanders hin und leg es ab
+]
 
 # --------------------------------------------------------------------------------
 # LIMITS DEFINITION
 # --------------------------------------------------------------------------------
-LIMITS = [-5, 5]
+LIMITS = [-6, 6]
 
 # --------------------------------------------------------------------------------
 # ROBOTER DEFINITION (Zentralisiert)
@@ -43,14 +49,38 @@ ROBOT_ARM_CONFIG = [
     [0.5, 0.1, [0, 3.14]], # Gelenk 1
     [1.0, 0.1, [-3.14, 3.14]]  # Gelenk 2
 ]
+# Definition eines Grippers (Länge 0.3, Breite 0.2)
+# Er fängt bei x=0 an und geht bis x=0.3
+GRIPPER_SHAPE = [[0.35, 0.3],  [0.0, 0.3],  [0.0, -0.3], [0.35, -0.3], 
+                 [0.35, -0.2], [0.1, -0.2], [0.1, 0.2],  [0.35, 0.2]] # LineString([(0.35,0.3), (0.0, 0.3), (0.0, -0.3), (0.35,0.3)]).buffer(0.1, cap_style='flat') 
+GRIPPER_LEN = 0.1
 # Arm startet leicht versetzt vorne an der Basis
 ARM_OFFSET = (2, 1)
 
+# --------------------------------------------------------------------------------
+# PICK-OBJECT DEFINITION
+# --------------------------------------------------------------------------------
+# Diese Definition wird für alle Benchmarks verwendet
+PICK_OBJECT = [[0.0, -0.2], [0.4, -0.2], [0.4, -0.5], [0.7, -0.5], [0.7, 0.3], [0.4, 0.3], [0.4, 0.2], [0.0, 0.2]]
+
 def create_checker(obstacles):
     """Hilfsfunktion, um einen Checker mit Hindernissen zu erzeugen"""
-    cc = CollisionChecker(base_shape=ROBOT_BASE_SHAPE, arm_config=ROBOT_ARM_CONFIG, arm_base_offset=ARM_OFFSET, base_center=ROBOT_CENTER, limits=LIMITS, check_self_collision_flag=SELF_CHECK, intersect_limit=INTERSECT_LIMITS)
+    cc = CollisionChecker(
+        base_shape=ROBOT_BASE_SHAPE, 
+        arm_config=ROBOT_ARM_CONFIG, 
+        
+        gripper_config=GRIPPER_SHAPE, 
+        gripper_len=GRIPPER_LEN, 
+        
+        arm_base_offset=ARM_OFFSET, 
+        base_center=ROBOT_CENTER, 
+        
+        object_shape=PICK_OBJECT, 
+        
+        limits=LIMITS, 
+        check_self_collision_flag=SELF_CHECK, 
+        intersect_limit=INTERSECT_LIMITS)
     cc.set_obstacles(obstacles)
-    # print(cc)
     return cc
 
 benchList = list()
@@ -117,7 +147,7 @@ goal_4  = [[12.0, 0.0, 0.0, 0.0, 0.0]]
 # --------------------------------------------------------------------------------
 # Ein Hindernis blockiert den direkten Weg, Roboter muss "um die Ecke" greifen
 # Basis kann nicht zum Ziel (blockiert), Arm muss arbeiten.
-barrier = LineString([(0,2), (4, 2), (4, 3.7)]).buffer(0.2, cap_style='flat') # Wand vor dem Ziel
+barrier = LineString([(0,2), (4, 2), (4, 3.0)]).buffer(0.2, cap_style='flat') # Wand vor dem Ziel
 obstacles_5 = [barrier]
 
 desc_5 = "Reach Task. Die Basis kann das Ziel nicht erreichen, der Arm muss rüberreichen."
@@ -136,3 +166,8 @@ benchList.append(Benchmark("The Wall",          cc_2, START, GOAL, desc_2))
 benchList.append(Benchmark("Narrow Passage",    cc_3, START, GOAL, desc_3))
 benchList.append(Benchmark("Forest",            cc_4, START, GOAL, desc_4))
 benchList.append(Benchmark("Shelf Reach",       cc_5, START, GOAL, desc_5))
+
+for b in benchList:
+    b.objectShape = PICK_OBJECT
+
+print("TestSuite geladen. Benchmarks für Pick & Place konfiguriert.")

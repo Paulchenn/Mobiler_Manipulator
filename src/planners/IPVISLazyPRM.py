@@ -9,11 +9,16 @@ License is based on Creative Commons: Attribution-NonCommercial 4.0 Internationa
 import networkx as nx
 
 
-def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=20, plot_only_solution=True, plot_robot=True):
+def lazyPRMVisualize(planner, solution, actions, ax=None, nodeSize=20, plot_only_solution=True, plot_robot=True):
     graph = planner.graph.copy()
     collChecker = planner._collisionChecker
     collEdges = planner.collidingEdges
     nonCollEdges = planner.nonCollidingEdges
+    # print("-"*20)
+    # print(solution)
+    # print(collEdges)
+    # print(nonCollEdges)
+    # print("-"*20)
     
     # 1. Positionen extrahieren und auf 2D (x,y) projizieren
     # Das ist wichtig für die 5D->2D Darstellung
@@ -93,18 +98,30 @@ def lazyPRMVisualize(planner, solution=[], ax=None, nodeSize=20, plot_only_solut
         # --- NEU: Roboter entlang des Pfades zeichnen ---
         # Wir iterieren über jeden Knoten im Lösungspfad
         for i, node_id in enumerate(solution):
+            try:
+                if i == 0:
+                    collChecker.detach_object()
+                    action = 'MOVE'
+                else:
+                    action = actions[i-1][0]
+            except:
+                action = 'MOVE'
+            # print("-"*20)
+            # print(action)
+            # print("-"*20)
+
             # 1. Volle 5D-Konfiguration holen
             full_config = graph.nodes[node_id]['pos']
             
             # 2. Styling: Start und Ziel deckend, dazwischen transparent
             if i == 0 or i == len(solution) - 1:
-                current_alpha = 0.8
+                current_alpha = 1
             else:
-                current_alpha = 0.15 # Sehr transparent, damit man den Graphen noch sieht
+                current_alpha = 0.5 # Sehr transparent, damit man den Graphen noch sieht
             
             # 3. Roboter zeichnen lassen
             if plot_robot:
-                collChecker.drawRobot(full_config, ax, alpha=current_alpha)
+                collChecker.drawRobot(full_config, ax, alpha=current_alpha, action=action)
     
     return
 
