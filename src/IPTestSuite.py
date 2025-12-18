@@ -26,12 +26,12 @@ INTERSECT_LIMITS = 0.002
 # START GOAL DEFINITION
 # --------------------------------------------------------------------------------
 START = [[-3.0, -4.0, 0.0, np.pi/4, -np.pi/4]]
-# Format: (Koordinate, "AKTION")
+# Format: (Koordinate, "AKTION", Rückzugsstrategie)
 # Aktion: "PICK", "PLACE", "MOVE"
 GOAL = [
-    ([2.0, 3.0, 0.0, np.pi/2, -np.pi/2], "PICK"),   # Fahr hin und greif was
-    ([3.0, -4.0, 0.0, 0.0, -np.pi/2],    "PLACE"),   # Fahr woanders hin und leg es ab
-    ([-3.0, -4.0, 0.0, np.pi/4, -np.pi/4],"MOVE")   # Fahr woanders hin und leg es ab
+    ([2.0, 3.0, 0.0, np.pi/2, -np.pi/2],   "PICK",  [0.6, 0.0]),   # Fahr hin und greif was
+    ([3.0, -4.0, 0.0, 0.0, -np.pi/2],      "PLACE", [0.0, -0.6]),   # Fahr woanders hin und leg es ab
+    ([-3.0, -4.0, 0.0, np.pi/4, -np.pi/4], "MOVE")   # Fahr woanders hin und leg es ab
 ]
 
 # --------------------------------------------------------------------------------
@@ -147,7 +147,7 @@ goal_4  = [[12.0, 0.0, 0.0, 0.0, 0.0]]
 # --------------------------------------------------------------------------------
 # Ein Hindernis blockiert den direkten Weg, Roboter muss "um die Ecke" greifen
 # Basis kann nicht zum Ziel (blockiert), Arm muss arbeiten.
-barrier = LineString([(0,2), (4, 2), (4, 3.7)]).buffer(0.2, cap_style='flat') # Wand vor dem Ziel
+barrier = LineString([(0,2), (4, 2), (4, 3.0)]).buffer(0.2, cap_style='flat') # Wand vor dem Ziel
 obstacles_5 = [barrier]
 
 desc_5 = "Reach Task. Die Basis kann das Ziel nicht erreichen, der Arm muss rüberreichen."
