@@ -53,7 +53,7 @@ class MultiGoalPlannerRunner:
                     
                     if poly is not None:
                         # Als Hindernis hinzufügen
-                        print(f"      [Setup] Initial object placed at Pick-Location as obstacle.")
+                        print(f"        [Setup] Initial object placed at Pick-Location as obstacle.")
                         planner._collisionChecker.obstacles.append(poly)
                         current_world_obstacle_poly = poly
                     break # Wir nehmen an, das Objekt liegt beim ersten Pick
@@ -125,12 +125,12 @@ class MultiGoalPlannerRunner:
                 if current_world_obstacle_poly is not None:
                     if current_world_obstacle_poly in planner._collisionChecker.obstacles:
                         planner._collisionChecker.obstacles.remove(current_world_obstacle_poly)
-                        print(f"      [Action] PICK: Removed static object from obstacles.")
+                        print(f"        [Action] PICK: Removed static object from obstacles.")
                     current_world_obstacle_poly = None # Referenz löschen
 
                 # B) Objekt an Roboter hängen
                 if object_shape is not None:
-                    print(f"      [Action] PICK: Robot holds object.")
+                    print(f"        [Action] PICK: Robot holds object.")
                     planner._collisionChecker.attach_object(object_shape)
             
             elif current_action == "PLACE":
@@ -155,7 +155,7 @@ class MultiGoalPlannerRunner:
 
                     # 2. Das Objekt als NEUES HINDERNIS hinzufügen
                     if placed_object_poly is not None:
-                        print(f"      [Action] PLACE: Object added to obstacles at current position.")
+                        print(f"        [Action] PLACE: Object added to obstacles at current position.")
                         planner._collisionChecker.obstacles.append(placed_object_poly)
                         current_world_obstacle_poly = placed_object_poly # Referenz merken (falls wir es später wieder aufheben)
 
