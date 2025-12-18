@@ -7,9 +7,7 @@ from matplotlib.animation import FuncAnimation
 from IPython.display import HTML, display, clear_output
 import networkx as nx
 from shapely.geometry import Polygon
-
-# Neue Imports für die UI
-from ipywidgets import Button, Dropdown, VBox, HBox, Output, Layout, Label
+from ipywidgets import Button, Dropdown, VBox, HBox, Output, Layout, Label, IntProgress
 
 class IPAnimator:
     """
@@ -133,7 +131,7 @@ class IPAnimator:
         return trajectory
 
     @staticmethod
-    def animate_solution(plannerFactory, result, limits=(-10, 25), interval=50, step_size=0.25, nodeSize=20):
+    def animate_solution(plannerFactory, result, limits=(-10, 25), interval=50, step_size=0.25, nodeSize=20, progress_widget=None):
         """
         Generates the HTML5 Animation with Split-Screen (Task Space & Graph).
         
@@ -181,7 +179,15 @@ class IPAnimator:
         # This creates a list of (config, shape) tuples
         full_trajectory = IPAnimator._get_trajectory_with_state(config_path, actions, cc, step_size=step_size)
         
-        print(f"Generating Animation for '{result.plannerFactoryName} - {result.benchmark.name}' ({len(full_trajectory)} frames)...")
+        print(f"[IPAnimator] Generating Animation for '{result.plannerFactoryName} - {result.benchmark.name}' ({len(full_trajectory)} frames)...")
+
+        # --- NEU: Progress Bar initialisieren ---
+        if progress_widget:
+            progress_widget.value = 0
+            progress_widget.max = len(full_trajectory)
+            progress_widget.description = f"0/{len(full_trajectory)}"
+            progress_widget.bar_style = 'info'
+        # ----------------------------------------
 
         # C. Setup Figure
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
@@ -221,6 +227,12 @@ class IPAnimator:
 
         # --- D. Animation Loop ---
         def update(frame):
+            # --- NEU: Progress Update ---
+            if progress_widget:
+                progress_widget.value = frame + 1
+                progress_widget.description = f"{frame + 1}/{len(full_trajectory)}"
+            # -----------------------------
+
             # 1. Update Workspace (Left)
             ax1.clear()
             # Reset properties after clear
@@ -281,6 +293,18 @@ class IPAnimator:
         dropdown = Dropdown(options=options, value=-1, description='Result:', layout=Layout(width='50%'))
         btn_save_mp4 = Button(description='Save .mp4', icon='save', disabled=True, button_style='info')
         btn_save_gif = Button(description='Save .gif', icon='save', disabled=True, button_style='warning')
+
+        # --- NEU: Progress Bar ---
+        progress_bar = IntProgress(
+            value=0,
+            min=0,
+            max=100,
+            description='Idle',
+            bar_style='', # 'success', 'info', 'warning', 'danger' or ''
+            orientation='horizontal',
+            layout=Layout(width='100%')
+        )
+        # -------------------------
         
         anim_output = Output()
         msg_output = Output()
@@ -311,16 +335,24 @@ class IPAnimator:
                 print("Calculating animation...")
                 # Animation erstellen
                 try:
-                    ani = IPAnimator.animate_solution(plannerFactory, res, limits=limits, interval=75, step_size=0.5)
+                    ani = IPAnimator.animate_solution(plannerFactory, res, limits=limits, interval=75, step_size=0.5, progress_widget=progress_bar)
                     state['current_anim'] = ani
-                    
+
                     clear_output(wait=True)
                     if ani:
+                        print("Rendering HTML (this takes time)...")
+                        # Der Progress Bar füllt sich während .to_jshtml() aufgerufen wird
                         display(HTML(ani.to_jshtml()))
+                        
+                        # Wenn fertig:
+                        progress_bar.bar_style = 'success'
+                        progress_bar.description = 'Done'
+                        
                         btn_save_mp4.disabled = False
                         btn_save_gif.disabled = False
                 except Exception as e:
                     print(f"Error: {e}")
+                    progress_bar.bar_style = 'danger'
 
         def save_file(b, fmt):
             if state['current_anim'] is None: return
@@ -345,9 +377,10 @@ class IPAnimator:
         btn_save_mp4.on_click(lambda b: save_file(b, 'mp4'))
         btn_save_gif.on_click(lambda b: save_file(b, 'gif'))
 
-        # 5. UI zurückgeben
+        # 5. UI zurückgeben (mit Progress Bar)
         return VBox([
             HBox([dropdown, btn_save_mp4, btn_save_gif]),
+            progress_bar, # <--- Hinzugefügt
             msg_output,
             anim_output
         ])
