@@ -109,12 +109,19 @@ class CollisionChecker:
         if self.check_self_collision_flag:
             base = geo['base']
             arm_segments = geo['arm_segments']
+            gripper = geo['gripper']
 
-            # A) Wir prüfen Armsegmente gegen Basis
+            # A) Wir prüfen Armsegmente gegen Basis und Gripper
             for seg in arm_segments:
-                if seg.intersects(base):
-                    if seg.intersection(base).area > self.intersect_limit:
+                if seg.intersection(base).area > self.intersect_limit:
+                    return True
+                elif seg.intersects(gripper):
+                    if seg != arm_segments[-1]:
                         return True
+                    
+            # B) Wir prüfen Gripper gegen Basis:
+            if gripper.intersects(base):
+                return True
                     
             # B) Wir prüfen das getragene Objekt (falls vorhanden)
             if geo['held_object'] is not None:
