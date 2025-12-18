@@ -37,7 +37,7 @@ GOAL = [
 # --------------------------------------------------------------------------------
 # LIMITS DEFINITION
 # --------------------------------------------------------------------------------
-LIMITS = [-5, 5]
+LIMITS = [-6, 6]
 
 # --------------------------------------------------------------------------------
 # ROBOTER DEFINITION (Zentralisiert)
@@ -51,10 +51,17 @@ ROBOT_ARM_CONFIG = [
 ]
 # Definition eines Grippers (Länge 0.3, Breite 0.2)
 # Er fängt bei x=0 an und geht bis x=0.3
-GRIPPER_SHAPE = [[0.0, -0.2], [0.1, -0.2], [0.1, 0.2], [0.0, 0.2]]
+GRIPPER_SHAPE = [[0.35, 0.3],  [0.0, 0.3],  [0.0, -0.3], [0.35, -0.3], 
+                 [0.35, -0.2], [0.1, -0.2], [0.1, 0.2],  [0.35, 0.2]] # LineString([(0.35,0.3), (0.0, 0.3), (0.0, -0.3), (0.35,0.3)]).buffer(0.1, cap_style='flat') 
 GRIPPER_LEN = 0.1
 # Arm startet leicht versetzt vorne an der Basis
 ARM_OFFSET = (2, 1)
+
+# --------------------------------------------------------------------------------
+# PICK-OBJECT DEFINITION
+# --------------------------------------------------------------------------------
+# Diese Definition wird für alle Benchmarks verwendet
+PICK_OBJECT = [[0.0, -0.2], [0.4, -0.2], [0.4, -0.5], [0.7, -0.5], [0.7, 0.3], [0.4, 0.3], [0.4, 0.2], [0.0, 0.2]]
 
 def create_checker(obstacles):
     """Hilfsfunktion, um einen Checker mit Hindernissen zu erzeugen"""
@@ -77,12 +84,6 @@ def create_checker(obstacles):
     return cc
 
 benchList = list()
-
-# --------------------------------------------------------------------------------
-# PICK-OBJECT DEFINITION
-# --------------------------------------------------------------------------------
-# Diese Definition wird für alle Benchmarks verwendet
-PICK_OBJECT = [[0.0, -0.4], [0.4, -0.4], [0.4, 0.2], [0.0, 0.4]]
 
 # --------------------------------------------------------------------------------
 # Benchmark 1: Empty World (Sanity Check)
