@@ -31,7 +31,7 @@ START = [[-3.0, -4.0, 0.0, np.pi/4, -np.pi/4]]
 GOAL = [
     ([2.0, 3.0, 0.0, np.pi/2, -np.pi/2],   "PICK",  [0.6, 0.0]),   # Fahr hin und greif was
     ([3.0, -4.0, 0.0, 0.0, -np.pi/2],      "PLACE", [0.0, -0.6]),   # Fahr woanders hin und leg es ab
-    ([-3.0, -4.0, 0.0, np.pi/4, -np.pi/4], "MOVE")   # Fahr woanders hin und leg es ab
+    ([-3.0, -4.0, 0.0, np.pi/2, np.pi/2], "MOVE")   # Fahr woanders hin und leg es ab
 ]
 
 # --------------------------------------------------------------------------------
@@ -147,8 +147,11 @@ goal_4  = [[12.0, 0.0, 0.0, 0.0, 0.0]]
 # --------------------------------------------------------------------------------
 # Ein Hindernis blockiert den direkten Weg, Roboter muss "um die Ecke" greifen
 # Basis kann nicht zum Ziel (blockiert), Arm muss arbeiten.
-barrier = LineString([(0,2), (4, 2), (4, 3.0)]).buffer(0.2, cap_style='flat') # Wand vor dem Ziel
-obstacles_5 = [barrier]
+pick_shelf_lower = LineString([(0,2.25), (3.3, 2.25), (3.3, 3.25), (5.5-0.69,3.25)]).buffer(0.24, cap_style='flat', join_style='mitre')
+pick_shelf_upper = LineString([(0,4.75), (5.5-0.69,4.75)]).buffer(0.24, cap_style='flat', join_style='mitre')
+wall_right = LineString([(5.5,LIMITS[0]), (5.5,LIMITS[1])]).buffer(0.69, cap_style='flat', join_style='mitre')
+wall_lower = LineString([(0.0,-4.75), (3.75,-4.75), (3.75,-5.55), (5.5-0.69,-5.55)]).buffer(0.24, cap_style='flat', join_style='mitre')
+obstacles_5 = [pick_shelf_lower, pick_shelf_upper, wall_right, wall_lower]
 
 desc_5 = "Reach Task. Die Basis kann das Ziel nicht erreichen, der Arm muss rüberreichen."
 cc_5 = create_checker(obstacles_5)
