@@ -48,3 +48,15 @@ temp/
 
 # Documentation builds (if applicable)
 site/
+*.bib
+*.aux
+*.bcf
+*.glo
+*.ist
+*.lof
+*.lot
+*.out
+*.pdf
+*.run.xml
+*.synctex.gz
+*.toc
