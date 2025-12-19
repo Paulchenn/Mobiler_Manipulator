@@ -79,10 +79,18 @@ class MultiGoalPlannerRunner:
         
         current_start = benchmark.startList 
         targets = benchmark.goalList
+
+        # object_shape = getattr(benchmark, 'objectShape', None)
+        # print(f"        [Setup] Object shape (benchmark): {object_shape}")
         object_shape = planner._collisionChecker.get_object_shape()
+        # print(f"        [Setup] Object shape (planner): {object_shape}")
         
         last_segment_end_node = None
         current_world_obstacle_poly = None
+
+        # Status Tracking Variablen
+        failed_segment_index = -1 # -1 bedeutet Success
+        failed_reason = ""
         
         # Sicherstellen, dass der Greifer am Anfang leer ist
         if hasattr(planner._collisionChecker, 'detach_object'):
@@ -118,22 +126,18 @@ class MultiGoalPlannerRunner:
             current_action = "MOVE"
             current_offset = MultiGoalPlannerRunner.DEFAULT_APPROACH_VEC
 
-            # Fall 1: (Config, Action, Offset) -> Länge 3
-            if isinstance(target_entry, (tuple, list)) and len(target_entry) == 3:
+            # print(target_entry)
+            if isinstance(target_entry, (tuple, list)):
                 actual_target_coords = target_entry[0]
-                current_action = target_entry[1]
-                current_offset = target_entry[2] # User defined [dx, dy]
 
-            # Fall 2: (Config, Action) -> Länge 2
-            elif isinstance(target_entry, (tuple, list)) and len(target_entry) == 2 and isinstance(target_entry[1], str):
-                actual_target_coords = target_entry[0]
-                current_action = target_entry[1]
-                # Default Offset nutzen
+                # Fall 2: (Config, Action) -> Länge 2
+                if len(target_entry) >= 2: current_action = target_entry[1]
+                # Fall 1: (Config, Action, Offset) -> Länge 3
+                if len(target_entry) >= 3: current_offset = target_entry[2]
 
             # Fall 3: Nur Config -> Länge wurscht, interpretieren als Koordinaten
             else:
                 actual_target_coords = target_entry
-                current_action = "MOVE"
 
             # 2. Planungs-Ziel bestimmen (Standoff oder direkt?)
             # Wenn PICK oder PLACE -> Fahre erst zum Standoff-Punkt
@@ -151,12 +155,18 @@ class MultiGoalPlannerRunner:
             # print(f"current_start: {current_start}")
             # print(f"current_goal_list_for_planner: {current_goal_list_for_planner}")
             # print(f"config: {config}")
+
+            # if i == 2:
+            #     print("My stop")
+            #     break
             segment = planner.planPath(current_start, current_goal_list_for_planner, config)
 
+            # --- FEHLERBEHANDLUNG (NEU: BREAK STATT EXCEPTION) ---
             if segment is None or len(segment) == 0:
-                raise Exception(f"        [WARNING] No path found in segment {i}")
-                print(f"        [WARNING] No path found in segment {i}")
-                break
+                print(f"        [WARNING] No path found in segment {i} ({current_action})! Stopping execution here.")
+                failed_segment_index = i
+                failed_reason = f"Failed at Segment {i}: {current_action}"
+                break # <--- HIER BRECHEN WIR AB
             
             # --- Graph Merging (Standard Path) ---
             current_graph = planner.graph
@@ -178,12 +188,8 @@ class MultiGoalPlannerRunner:
             if last_segment_end_node is not None:
                 full_roadmap_graph.add_edge(last_segment_end_node, relabeled_segment[0], connection="virtual") 
 
-            if not full_relabeled_path:
-                full_relabeled_path.extend(relabeled_segment)
-            else:
-                full_relabeled_path.extend(relabeled_segment)
-
             # Letzter Knoten des geplanten Pfades (das ist der Standoff Punkt!)
+            full_relabeled_path.extend(relabeled_segment)
             last_segment_end_node = relabeled_segment[-1]
 
             # --- ACTION HANDLING ---
@@ -215,7 +221,7 @@ class MultiGoalPlannerRunner:
                 if current_action == "PICK":
                     action_events[current_end_index] = ("PICK", object_shape)
                     
-                    if current_world_obstacle_poly is not None and current_world_obstacle_poly in planner._collisionChecker.obstacles:
+                    if current_world_obstacle_poly in planner._collisionChecker.obstacles:
                         planner._collisionChecker.obstacles.remove(current_world_obstacle_poly)
                         print(f"        [Action] PICK: Removed static object.")
                         current_world_obstacle_poly = None
@@ -282,5 +288,13 @@ class MultiGoalPlannerRunner:
             planner._collisionChecker.detach_object()
         if current_world_obstacle_poly in planner._collisionChecker.obstacles:
             planner._collisionChecker.obstacles.remove(current_world_obstacle_poly)
+
+        # NEUER RETURN WERT: Status Dictionary
+        status = {
+            "success": (failed_segment_index == -1),
+            "fail_segment": failed_segment_index,
+            "fail_reason": failed_reason,
+            "total_segments": len(targets)
+        }
         
-        return full_relabeled_path, action_events
+        return full_relabeled_path, action_events, status
