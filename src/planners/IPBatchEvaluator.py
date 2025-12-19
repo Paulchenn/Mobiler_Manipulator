@@ -31,28 +31,44 @@ class BatchEvaluator:
                     # Variablen für Messung
                     start_time = time.time()
                     success = False
-                    path_length = 0
+                    path_length = np.nan
                     nodes_count = 0
-                    error_msg = ""
+                    fail_stage_label = "Success" # Default
                     
                     try:
                         # 2. Benchmark ausführen
                         # IPPerfMonitor.clearData() # Falls du interne Timer tracken willst
                         
-                        full_path, _ = MultiGoalPlannerRunner.run_benchmark(planner, bench, config)
+                        full_path, _, status = MultiGoalPlannerRunner.run_benchmark(planner, bench, config)
                         
                         # 3. Metriken erfassen (bei Erfolg)
-                        success = True
-                        path_length = len(full_path)
+                        success = status["success"]
                         nodes_count = planner.graph.number_of_nodes()
+
+                        if success:
+                            path_length = len(full_path)
+                            fail_stage_label = "Success"
+                        else:
+                            # Wir schauen nach, welche Action bei diesem Segment geplant war
+                            seg_idx = status['fail_segment']
+                            target_entry = bench.goalList[seg_idx]
+                            
+                            # Action Namen extrahieren
+                            action_name = "MOVE"
+                            if isinstance(target_entry, (tuple, list)) and len(target_entry) >= 2:
+                                action_name = target_entry[1]
+                            
+                            # Label bauen: z.B. "Seg 1: PICK"
+                            fail_stage_label = f"Seg {seg_idx}: {action_name}"
+                            
+                            # Auch bei Teil-Pfaden haben wir eine Länge, 
+                            # für Statistik ist aber NaN besser oder wir speichern partial_length separat
+                            path_length = np.nan
                         
                     except Exception as e:
                         # 3b. Fehler erfassen
                         success = False
-                        error_msg = str(e)
-                        # Auch bei Fehler können wir schauen, wie groß der Graph wurde
-                        if hasattr(planner, 'graph'):
-                            nodes_count = planner.graph.number_of_nodes()
+                        fail_stage_label = "Exception/Crash"
                     
                     duration = time.time() - start_time
                     
@@ -63,9 +79,9 @@ class BatchEvaluator:
                         "RunID": run_id,
                         "Success": success,
                         "Time": duration,
-                        "PathLength": path_length if success else np.nan, # NaN bei Failure, damit Boxplot stimmt
+                        "PathLength": path_length,
                         "GraphNodes": nodes_count,
-                        "Error": error_msg
+                        "FailStage": fail_stage_label # NEUE SPALTE
                     }
                     data.append(entry)
                     pbar.update(1)
