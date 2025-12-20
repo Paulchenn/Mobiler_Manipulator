@@ -1,0 +1,39 @@
+\chapter{Implementierung und Evaluation}
+\label{ch:evaluation}
+
+\section{Der CollisionChecker}
+\label{sec:collision}
+
+Die Basis für alle Planungsverfahren ist eine zuverlässige Kollisionserkennung. Der Roboter wird hierbei modelliert durch eine rechteckige Basis und einen Arm mit zwei Segmenten.
+
+\subsection{Modellierung}
+Die Geometrie des Roboters wird über eine Liste definiert, welche die Längen und Dicken der Segmente sowie die Gelenkwinkelgrenzen enthält. Ein typisches Segment ist beispielsweise definiert als:
+\begin{lstlisting}
+# Beispiel eines Listenelements: [Laenge, Dicke, [MinWinkel, MaxWinkel]]
+segment = [5.1, 1, [-3.14, 3.14]] 
+\end{lstlisting}
+
+\subsection{Umgang mit Eigenkollisionen}
+Eine besondere Herausforderung stellt die Eigenkollision (Self-Collision) dar. Hierbei muss verhindert werden, dass der Arm des Roboters die eigene Basis oder andere Armsegmente durchdringt. Dies wurde implementiert, indem...
+% Hier kurz erklären, wie du das gelöst hast (z.B. Prüfung aller Segment-Paare).
+
+\section{Benchmarking der Planer}
+Zur Bewertung der Algorithmen \textit{LazyPRM} und \textit{VisibilityPRM} wurden 5 Benchmark-Umgebungen mit steigendem Schwierigkeitsgrad erstellt.
+
+\subsection{Ergebnisse}
+Wie im Notebook \texttt{IP-X-1-Automated\_PlanerTest.ipynb} analysiert, zeigen sich folgende Unterschiede:
+\begin{itemize}
+    \item \textbf{LazyPRM}: Zeigt Stärken in...
+    \item \textbf{VisibilityPRM}: Ist effizienter bei...
+\end{itemize}
+
+Ein Vergleich der Pfadlängen und Berechnungszeiten (mit und ohne Eigenkollisionsprüfung) ist in Abbildung \ref{fig:benchmark} dargestellt.
+
+% Beispiel für Bild-Einbindung im HKA Template Stil
+\begin{figure}[H]
+    \centering
+    % Ersetze 'beispiel_plot.png' durch deinen Dateinamen in Figures/
+    % \includegraphics[width=0.8\textwidth]{Figures/png/beispiel_plot.png}
+    \caption{Vergleich der geplanten Pfade in einer komplexen Umgebung.}
+    \label{fig:benchmark}
+\end{figure}

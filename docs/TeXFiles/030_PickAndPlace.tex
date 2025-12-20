@@ -1,0 +1,17 @@
+\chapter{Pick-And-Place Szenario}
+\label{ch:pickplace}
+
+In diesem Szenario soll der mobile Manipulator einen Block greifen und an einer anderen Position ablegen. Da keine inverse Kinematik verwendet wird, werden die Zielpositionen explizit im Konfigurationsraum vorgegeben.
+
+\section{Erweiterung der Kollisionsprüfung}
+Um das "Greifen" zu simulieren, wurde der \textit{CollisionChecker} erweitert. Sobald der Endeffektor das Objekt erreicht, wird das Hindernis (der Block) logisch an das letzte Segment des Roboterarms angehängt.
+
+\section{Ablauf der Simulation}
+Der Ablauf gliedert sich in drei Phasen:
+\begin{enumerate}
+    \item \textbf{Anfahrt:} Der Roboter plant einen Pfad von der Startposition zur Pose des Blocks.
+    \item \textbf{Greifen:} Der Block wird Teil der Roboter-Kinematik.
+    \item \textbf{Transport:} Der Roboter (nun mit angehängtem Block) plant einen kollisionsfreien Pfad zur Zielablage.
+\end{enumerate}
+
+% Hier ggf. eine Bilderserie einfügen (Start -> Griff -> Ende)

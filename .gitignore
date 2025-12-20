@@ -60,3 +60,5 @@ site/
 *.run.xml
 *.synctex.gz
 *.toc
+*.bbl
+*.blg

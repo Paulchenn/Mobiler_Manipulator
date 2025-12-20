@@ -1,0 +1,38 @@
+\chapter{Theoretische Erweiterungen}
+\label{ch:theorie}
+
+Dieser Abschnitt behandelt weiterführende Konzepte, die über die aktuelle Implementierung hinausgehen. Insbesondere wird diskutiert, wie translatorische Gelenke integriert werden können und wie die geplanten Bahnen geglättet werden können.
+
+\section{Erweiterung um translatorische Gelenke}
+Bisher betrachtet das System eine mobile Basis $(x, y)$ und rotatorische Gelenke ($\theta_1, \theta_2$). Ein translatorisches Gelenk (Prisma-Gelenk) ändert die Länge eines Segments oder verschiebt Segmente linear zueinander.
+
+\subsection{Auswirkung auf den Konfigurationsraum (C-Space)}
+Während rotatorische Gelenke periodisch sein können (z.B. $-\pi$ bis $\pi$), sind translatorische Gelenke durch feste lineare Grenzen definiert (z.B. $0$ bis $d_{max}$ Meter).
+% HIER MEHR TEXT EINFÜGEN:
+% Erkläre, dass sich die Topologie des C-Space ändert.
+% Erkläre, dass beim Sampling für dieses Gelenk nun Meter statt Radiant gewürfelt werden müssen.
+
+\subsection{Notwendige Anpassungen in der Implementierung}
+Um dies im bestehenden Code zu realisieren, müssten folgende Stellen angepasst werden:
+\begin{itemize}
+    \item \textbf{Vorwärtskinematik:} Die Transformationsmatrix ändert sich. Statt einer reinen Rotation fließt der Gelenkparameter $d$ in den Translationsvektor der Matrix ein.
+    \item \textbf{Sampling:} Der Sampler muss wissen, ob ein Gelenk vom Typ "revolute" oder "prismatic" ist, um im korrekten Wertebereich zu samplen.
+\end{itemize}
+
+\section{Optimierung und Glättung von Bewegungsbahnen}
+Die von PRM-Algorithmen (Probabilistic Roadmaps) erzeugten Pfade bestehen oft aus linearen Segmenten zwischen zufällig gewürfelten Punkten. Dies führt zu eckigen, ruckartigen Bewegungen, die mechanisch ungünstig sind.
+
+\subsection{Shortcut-Methode (Post-Processing)}
+Ein einfacher Ansatz ist das "Pruning" oder die Shortcut-Methode:
+\begin{enumerate}
+    \item Wähle zwei nicht benachbarte Punkte auf dem gefundenen Pfad.
+    \item Prüfe, ob eine direkte Verbindung (Linie) zwischen ihnen kollisionsfrei ist.
+    \item Falls ja: Ersetze den ursprünglichen Teilpfad durch die direkte Linie.
+\end{enumerate}
+Dies reduziert die Pfadlänge signifikant, behält aber die Ecken bei.
+
+\subsection{Verwendung von Splines}
+Für eine differenzierbare, weiche Bahn (glatte Geschwindigkeit und Beschleunigung) können B-Splines oder Bezier-Kurven verwendet werden. Hierbei dienen die Wegpunkte des PRM-Pfades als Kontrollpunkte für den Spline.
+
+% Hier noch etwas Text ergänzen, um die Seite zu füllen. 
+% Z.B. über die Rechenzeit sprechen: Glättung kostet Zeit, schont aber den Roboter.
