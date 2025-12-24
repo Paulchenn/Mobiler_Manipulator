@@ -1,39 +1,170 @@
 \chapter{Implementierung und Evaluation}
 \label{ch:evaluation}
 
-\section{Der CollisionChecker}
+\section{Implementierung des CollisionCheckers}
 \label{sec:collision}
 
-Die Basis für alle Planungsverfahren ist eine zuverlässige Kollisionserkennung. Der Roboter wird hierbei modelliert durch eine rechteckige Basis und einen Arm mit zwei Segmenten.
+Die Basis für die Pfadplanung bildet die korrekte kinematische und geometrische Modellierung des Robotersystems sowie eine effiziente Kollisionsprüfung. Die Validierung einer Roboterkonfiguration erfolgt durch die Klasse \texttt{CollisionChecker}. Diese nutzt die Bibliothek \texttt{shapely} für geometrische Operationen.
 
-\subsection{Modellierung}
-Die Geometrie des Roboters wird über eine Liste definiert, welche die Längen und Dicken der Segmente sowie die Gelenkwinkelgrenzen enthält. Ein typisches Segment ist beispielsweise definiert als:
-\begin{lstlisting}
-# Beispiel eines Listenelements: [Laenge, Dicke, [MinWinkel, MaxWinkel]]
-segment = [5.1, 1, [-3.14, 3.14]] 
-\end{lstlisting}
+\subsection{Modellierung des Roboters}
+Der betrachtete mobile Manipulator besteht aus einer beweglichen Basis und einem seriellen Roboterarm. Die geometrische und kinematische Definition erfolgt parametrisch, um eine flexible Anpassung an verschiedene Szenarien zu gewährleisten.
 
-\subsection{Umgang mit Eigenkollisionen}
-Eine besondere Herausforderung stellt die Eigenkollision (Self-Collision) dar. Hierbei muss verhindert werden, dass der Arm des Roboters die eigene Basis oder andere Armsegmente durchdringt. Dies wurde implementiert, indem...
-% Hier kurz erklären, wie du das gelöst hast (z.B. Prüfung aller Segment-Paare).
+\subsubsection{Geometrische Definition}
+Die Geometrie wird in \textit{IPTestSuite.py} durch folgende Parameter definiert:
+\begin{listNorm}
+    \item \textbf{Mobile Basis:} Die Basis ist als Rechteck modelliert (Shape: $[(0,0), (2,0), (2,1), (0,1)]$). Dies entspricht einer Länge von $2.0$ Einheiten und einer Breite von $1.0$ Einheit.
+    \item \textbf{Referenzpunkt:} Der lokale Ursprung der Basis (\enquote{Center}) wird auf die lokalen Koordinaten $(1.0, 0.5)$ festgelegt. Dies entspricht dem geometrischen Mittelpunkt der Basisfläche. Rotationen der Basis erfolgen um diesen Punkt.
+    \item \textbf{Arm-Montage:} Der Roboterarm ist an der vorderen Kante der Basis montiert (Offset relativ zum Basis-Nullpunkt: $(2.0, 1.0)$).
+\end{listNorm}
 
-\section{Benchmarking der Planer}
-Zur Bewertung der Algorithmen \textit{LazyPRM} und \textit{VisibilityPRM} wurden 5 Benchmark-Umgebungen mit steigendem Schwierigkeitsgrad erstellt.
+Der Roboterarm setzt sich aus zwei Segmenten und einem Greifer zusammen. Die kinematischen Parameter sind in Tabelle \ref{tab:robot_params} aufgeführt.
 
-\subsection{Ergebnisse}
-Wie im Notebook \texttt{IP-X-1-Automated\_PlanerTest.ipynb} analysiert, zeigen sich folgende Unterschiede:
-\begin{itemize}
-    \item \textbf{LazyPRM}: Zeigt Stärken in...
-    \item \textbf{VisibilityPRM}: Ist effizienter bei...
-\end{itemize}
+\begin{table}[H]
+    \centering
+    \caption{Kinematische Parameter des Roboterarms}
+    \label{tab:robot_params}
+    \begin{tabular}{l c c c}
+        \toprule
+        \textbf{Komponente} & \textbf{Länge [m]} & \textbf{Dicke [m]} & \textbf{Winkelbereich [rad]} \\
+        \midrule
+        Segment 1 & 0.5 & 0.1 & $[0, \pi]$ \\
+        Segment 2 & 1.0 & 0.1 & $[-\pi, \pi]$ \\
+        Greifer & 0.1 & - & - \\
+        \bottomrule
+    \end{tabular}
+\end{table}
 
-Ein Vergleich der Pfadlängen und Berechnungszeiten (mit und ohne Eigenkollisionsprüfung) ist in Abbildung \ref{fig:benchmark} dargestellt.
+\subsubsection{Konfigurationsraum}
+Da die Basis über drei Freiheitsgrade $(x, y, \theta_{base})$ verfügt und der Arm zwei rotatorische Gelenke aufweist, beschreibt ein \textbf{5-dimensionaler Konfigurationsvektor} $q$ den Zustand des Roboters vollständig:
+\begin{equation}
+    q = (x, y, \theta_{base}, \theta_{1}, \theta_{2})^T
+\end{equation}
+Hierbei beschreiben $(x, y, \theta_{base})$ die Pose der Basis im Weltkoordinatensystem, während $\theta_{1}$ und $\theta_{2}$ die relativen Gelenkwinkel des Arms beschreiben.
 
-% Beispiel für Bild-Einbindung im HKA Template Stil
+\subsection{Kollisionsprüfung}
+\label{sec:collision_check}
+
+Die Validierung einer Roboterkonfiguration erfolgt durch die Klasse \texttt{CollisionChecker}. Diese nutzt die Bibliothek \texttt{shapely} für geometrische Operationen und Schnitttests. Die Methode \texttt{pointInCollision} prüft die Gültigkeit einer Konfiguration $q$ in einem hierarchischen Ablauf, um rechenintensive geometrische Operationen zu minimieren.
+
+\subsubsection{Ablauf der Gültigkeitsprüfung}
+Der Algorithmus prüft die Kriterien in folgender Reihenfolge. Sobald ein Kriterium verletzt ist, wird die Konfiguration sofort als ungültig (\texttt{True}) markiert:
+
+\begin{listArab}
+    \item \textbf{Gelenkwinkelgrenzen:} Es wird geprüft, ob die Winkel $\theta_1$ und $\theta_2$ innerhalb der definierten Min/Max-Werte liegen.
+    \item \textbf{Arbeitsraumgrenzen:} Es wird überprüft, ob irgendein Roboterteil die definierten Weltgrenzen (Limits) überschreitet.
+    \item \textbf{Statische Hindernisse:} Jedes Segment des Roboters (Basis, Armsegmente, Greifer und ggf. gegriffenes Objekt) wird gegen die Liste der statischen Hindernisse (\texttt{obstacles}) auf Schnittmengen geprüft.
+    \item \textbf{Eigenkollision:} Abschließend erfolgt die Prüfung auf Kollisionen des Roboters mit sich selbst (siehe Abschnitt \ref{sec:self_collision}).
+\end{listArab}
+
+\subsubsection{Behandlung von Eigenkollisionen}
+\label{sec:self_collision}
+Die Eigenkollisionsprüfung (\textit{Self-Collision Check}) stellt sicher, dass der Manipulator sich nicht selbst beschädigt. Diese Prüfung kann optional über das Flag \texttt{SELF\_CHECK} (in \textit{IPTestSuite.py}) deaktiviert werden, um bspw. die Performance in Szenarien zu erhöhen, in denen Eigenkollisionen ausgeschlossen sind.
+
+Folgende Konflikte werden detektiert:
+\begin{listNorm}
+    \item \textbf{Arm gegen Basis:} Es wird geprüft, ob eines der Armsegmente in die Fläche der Basis eindringt. Um numerische Ungenauigkeiten an der Kontaktstelle (Montagepunkt) zu tolerieren, wird eine Kollision erst gemeldet, wenn die Schnittfläche einen Grenzwert (\texttt{intersect\_limit}, standardmäßig $0.002$) überschreitet.
+    \item \textbf{Greifer gegen Basis:} Der Greifer wird separat gegen die Basis geprüft.
+    \item \textbf{Arm gegen Greifer:} Die Armsegmente werden gegen den Greifer geprüft. Hierbei wird das letzte Segment des Arms explizit ausgeschlossen, da der Greifer an diesem befestigt ist.
+    \item \textbf{Gegriffenes Objekt:} Befindet sich ein Objekt im Greifer (\enquote{Pick}-Zustand), wird dieses als temporärer Teil der Roboterkonfiguration betrachtet. Es wird sowohl gegen die Basis als auch gegen alle Armsegmente (außer dem befestigenden letzten Segment) geprüft.
+\end{listNorm}
+
+Eine Überprüfung von Interaktionen zwischen benachbarten Armsegmenten entfällt. Konstruktionsbedingt wird davon ausgegangen, dass sich die Segmente überschneidungsfrei aneinander vorbei bewegen können.
+
+\section{Benchmarking der Planungsverfahren}
+\label{sec:benchmarking}
+
+Zur Evaluierung der implementierten Algorithmen \ac{LazyPRM} und \ac{VisibilityPRM} wird eine quantitative Analyse in fünf verschiedenen Simulationsumgebungen durchgeführt. Ziel ist der Vergleich hinsichtlich Erfolgsrate, Pfadqualität und Berechnungseffizienz.
+
+\subsection{Versuchsaufbau}
+Die Benchmarks wurden auf einem MacBook Air M2 2022 durchgeführt. Jedes Szenario wurde in zwei Konfigurationen getestet:
+\begin{enumerate}
+    \item \textbf{Mit Eigenkollisionsprüfung (Self-Check):} Realistische Simulation, bei der Arm-Basis- und Arm-Greifer-Kollisionen geprüft werden.
+    \item \textbf{Ohne Eigenkollisionsprüfung:} Zur Isolierung der algorithmischen Performance des Planers unabhängig von der Geometrie-Prüfung (siehe Diskussion in Abschnitt \ref{sec:self_check_impact}).
+\end{enumerate}
+
+Pro Szenario und Planer wurden $N=10$ Durchläufe (Runs) durchgeführt. Als Abbruchkriterien dienen das Finden eines Pfades oder das Erreichen der maximalen Knotenanzahl.
+
+Die fünf Testumgebungen sind:
+\begin{listNorm}
+    \item \textbf{Empty World:} Eine hindernisfreie Umgebung zur Messung der Basis-Performance (siehe Anhang~\ref{fig:empty_world}).
+    \item \textbf{The Wall:} Eine Wand trennt Start und Ziel, verbunden nur durch eine schmale Türöffnung (siehe Anhang~\ref{fig:the_wall}).
+    \item \textbf{Narrow Passage:} Ein langer, enger Korridor, der präzise Bewegungen der Basis erfordert (siehe Anhang~\ref{fig:narrow_passage}).
+    \item \textbf{Forest:} Eine \enquote{Clutter}-Umgebung mit vielen verteilten Hindernissen (Säulen), die ein häufiges Umgreifen erfordern (siehe Anhang~\ref{fig:forest}).
+    \item \textbf{Shelf Reach:} Ein Szenario, bei dem die Basis das Ziel nicht erreichen kann und der Arm das Objekt hinter einem Hindernis greifen muss (hohe Anforderung an die Arm-Kinematik) (siehe Anhang~\ref{fig:shelf_reach}).
+\end{listNorm}
+
+\subsection{Qualitative Analyse der Roadmaps}
+Ein visueller Vergleich der erzeugten Graphen (Roadmaps) verdeutlicht die unterschiedlichen Strategien der Algorithmen. Abbildung \ref{fig:roadmap_comparison} zeigt die Roadmaps für das Szenario \textit{Forest}.
+
 \begin{figure}[H]
     \centering
-    % Ersetze 'beispiel_plot.png' durch deinen Dateinamen in Figures/
-    % \includegraphics[width=0.8\textwidth]{Figures/png/beispiel_plot.png}
-    \caption{Vergleich der geplanten Pfade in einer komplexen Umgebung.}
-    \label{fig:benchmark}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Figures/png/Forest_visibilityPRM.png}
+        \caption{VisibilityPRM Roadmap}
+        \label{fig:forest_vis}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Figures/png/Forest_lazyPRM.png}
+        \caption{LazyPRM Roadmap}
+        \label{fig:forest_lazy}
+    \end{subfigure}
+    \caption{Vergleich der generierten Roadmaps im Szenario \textit{Forest}. (a) VisibilityPRM generiert einen spärlichen Graphen, wobei Knoten primär an Hinderniskanten und in freien Sichtbereichen platziert werden. (b) LazyPRM erzeugt eine dichte, gleichverteilte Wolke an Knoten.}
+    \label{fig:roadmap_comparison}
 \end{figure}
+
+Es ist zu erkennen, dass \ac{LazyPRM} den Freiraum mit einer hohen Anzahl an zufälligen Knoten \enquote{flutet} (siehe Abb. \ref{fig:forest_lazy}). Dies führt zu einem sehr großen Graphen (im Mittel über 1000 Knoten), was die Speicherkomplexität erhöht. 
+Im Gegensatz dazu reduziert \ac{VisibilityPRM} die Anzahl der Knoten signifikant (siehe Abb. \ref{fig:forest_vis}), indem nur solche Konfigurationen zum Graphen hinzugefügt werden, die die Sichtbarkeit erweitern (Guard-Nodes) oder unabhängige Komponenten verbinden (Connector-Nodes).
+
+\subsection{Quantitative Ergebnisse (Baseline)}
+\label{sec:quantitative_results}
+
+Im ersten Schritt werden die Ergebnisse unter realitätsnahen Bedingungen, demnach \textbf{mit aktiver Eigenkollisionsprüfung}, betrachtet. Abbildung \ref{fig:forest_bench_multi} zeigt exemplarisch die statistische Auswertung für das komplexe Szenario \textit{Forest}.
+
+\subsubsection{Erfolgsrate und Robustheit}
+Die Ergebnisse zeigen eine klare Dichotomie zwischen den beiden Planungsansätzen:
+\begin{listNorm}
+    \item \textbf{Freie Umgebungen:} Im Szenario \textit{Empty World} erreichen beide Planer erwartungsgemäß eine Erfolgsrate von 100\,\% (siehe Anhang~\ref{fig:empty_world_bench_multi}).
+    \item \textbf{Engstellen (The Wall, Narrow Passages):} In den Szenarien \textit{The Wall} und \textit{Narrow Passage} offenbart sich die Schwäche des \ac{LazyPRM}. Während \ac{VisibilityPRM} hier konstant 100\,\% Erfolgsrate erzielt, scheitert \ac{LazyPRM} vollständig (0\,\%). Dies bestätigt, dass reine Zufalls-Sampling-Strategien ohne heuristische Steuerung statistisch unwahrscheinlich kritische Engstellen im Konfigurationsraum finden (siehe Anhang~\ref{fig:the_wall_bench_multi} und~\ref{fig:narrow_passage_bench_multi}).
+    \item \textbf{Komplexe Umgebungen:} Im Szenario \textit{Forest} (viele Hindernisse) zeigt \ac{VisibilityPRM} seine Stärke mit 100\,\% Erfolg. \ac{LazyPRM} bricht hier ein und findet nur in 50\,\% der Fälle eine Lösung, da der Arm oft in \enquote{Sackgassen} zwischen den Hindernissen gerät (siehe Abbildung~\ref{fig:forest_bench_multi} und~\ref{fig:shelf_reach_bench_multi}).
+\end{listNorm}
+
+Das Szenario \textit{Shelf Reach} erweist sich als das anspruchsvollste. Hier kann lediglich \ac{VisibilityPRM} in 20\,\% der Fälle eine Lösung finden, während \ac{LazyPRM} konstant scheitert.
+
+\subsubsection{Planungszeit und Effizienz}
+Bezüglich der Rechenzeit bestätigt sich der theoretische Unterschied der Algorithmen:
+\begin{itemize}
+    \item \ac{LazyPRM} ist in einfachen Szenarien extrem effizient (ca. $0.5$\,s in \textit{Empty World}). Die Strategie, Kollisionsprüfungen zu verzögern (\textit{lazy}), zahlt sich hier aus.
+    \item \ac{VisibilityPRM} benötigt signifikant mehr Rechenzeit (Mittelwert ca. $140$\,s im Szenario \textit{Forest}), da für jeden potenziellen neuen Knoten aufwendige Sichtbarkeitsprüfungen gegen alle Hindernisse durchgeführt werden müssen.
+\end{itemize}
+
+% Statistik-Plot (Forest MIT Check)
+\begin{figure}[H]
+    \centering
+    % WICHTIG: Hier die Datei einbinden, die dem "WITH CHECK" Run entspricht!
+    \includegraphics[width=1.0\textwidth]{Figures/png/Forest_benchmark_multiRun.png} 
+    \caption{Statistische Auswertung für das Szenario \textit{Forest} (mit Eigenkollisionsprüfung). Oben links: Erfolgsrate (Visibility 100\,\%, Lazy 50\,\%). Unten links: Die Planungszeit von VisibilityPRM ist deutlich höher, korreliert aber mit der höheren Robustheit.}
+    \label{fig:forest_bench_multi}
+\end{figure}
+
+\subsection{Einfluss der Eigenkollision}
+\label{sec:self_check_impact}
+
+Um den Einfluss der geometrischen Komplexität des Roboters auf die Planung zu untersuchen, wurden alle Szenarien erneut \textbf{ohne Eigenkollisionsprüfung} durchlaufen. Hierbei wird der Roboter effektiv als \enquote{Geist} behandelt, der sich selbst durchdringen darf.
+
+Der Vergleich der Ergebnisse liefert interessante Erkenntnisse:
+\begin{enumerate}
+    \item \textbf{Steigerung der Erfolgsrate bei LazyPRM:} 
+    Besonders im Szenario \textit{Forest} profitiert \ac{LazyPRM} massiv von der deaktivierten Eigenkollision. Die Erfolgsrate stieg von 50\,\% auf 100\,\%.\newline \textit{Interpretation:} Ohne die Beschränkung der Eigenkollision kann der Planer den Roboterarm durch sich selbst hindurch falten, um Hindernissen auszuweichen. Dies vereinfacht die Topologie des Konfigurationsraums erheblich, wodurch der einfache Sampling-Ansatz wieder performant wird.
+    
+    \item \textbf{Keine Verbesserung bei Engstellen:}
+    In den Szenarien \textit{Narrow Passage} bleibt die Erfolgsrate von \ac{LazyPRM} auch ohne Eigenkollision bei 0\,\%. Dies belegt, dass das Scheitern in diesen Szenarien primär durch die externen Hindernisse (Wände) und nicht durch die Selbstbeschränkung des Roboters verursacht wird.
+    
+    \item \textbf{Rechenzeit:}
+    Entgegen der Erwartung führt das Abschalten der Eigenkollisionsprüfung bei \ac{VisibilityPRM} im Szenario \textit{Forest} nicht zu einer signifikanten Reduktion der Rechenzeit (ca. $140$\,s mit vs. ca. $150$\,s ohne Prüfung). Dies deutet darauf hin, dass der dominierende Faktor im \ac{VisibilityPRM} die Anzahl der Sichtbarkeitsprüfungen (Raycasts) gegen die externen Hindernisse ist, und nicht die Prüfung der Roboterkonfiguration selbst.
+\end{enumerate}
+
+\section{Diskussion der Ergebnisse}
+Zusammenfassend kann festgehalten werden, dass \ac{VisibilityPRM} für den betrachteten mobilen Manipulator die robustere Wahl darstellt, insbesondere in unübersichtlichen oder engen Umgebungen. Die höheren Rechenzeiten werden durch die Garantie gerechtfertigt, auch schwierige Passagen (wie Türen oder enge Korridore) zuverlässig zu finden. \ac{LazyPRM} eignet sich hingegen hervorragend für offene Areale oder Szenarien mit geringer Hindernisdichte, verliert jedoch an Zuverlässigkeit, sobald komplexe Ausweichmanöver oder die Berücksichtigung von Eigenkollisionen erforderlich sind.
