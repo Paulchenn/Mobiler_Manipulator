@@ -1,32 +1,19 @@
 \chapter{Einleitung}
 \label{ch:einleitung}
-In diesem Projekt wird ein mobiler Manipulator simuliert, der aus einer beweglichen Basis und einem Arm mit zwei rotatorischen Gelenken besteht. Ziel der Arbeit ist die Implementierung eines robusten Kollisionsprüfers (Collision Checker) sowie die Planung und Evaluierung von kollisionsfreien Bewegungsbahnen unter Verwendung von Sampling-basierten Algorithmen (LazyPRM, VisibilityPRM).
+In diesem Projekt wird ein mobiler Manipulator simuliert, der aus einer beweglichen Basis (3 Freiheitsgrade) und einem Arm mit zwei rotatorischen Gelenken besteht (insgesamt 5 Freiheitsgrade). Ziel der Arbeit ist die Implementierung eines robusten Kollisionsprüfers (Collision Checker) sowie die Planung und Evaluierung von kollisionsfreien Bewegungsbahnen unter Verwendung von Sampling-basierten Algorithmen. Im Gegensatz zu exakten Verfahren, die den gesamten Konfigurationsraum explizit berechnen müssten, generieren diese Methoden zufällige Stichproben (Samples) der Roboterpositionen, um probabilistisch eine kollisionsfreie Roadmap (einen Graphen) zu erstellen. In dieser Arbeit werden speziell die Varianten 
+\begin{listNorm}
+    \item \textbf{\ac{LazyPRM}} und
+    \item \textbf{\ac{VisibilityPRM}}
+\end{listNorm}
+betrachtet.
 
 Zusätzlich werden im zweiten Teil dieses Berichts theoretische Konzepte zur Erweiterung des Systems um translatorische Gelenke sowie Möglichkeiten zur Bahnoptimierung diskutiert.
 
-\section{Aufgabenstellung}
 Die Aufgabe gliedert sich in folgende Teilbereiche:
-\begin{enumerate}
+\begin{listArab}
     \item Implementierung eines \textit{CollisionCheckers} für einen planaren Roboter (Basis + 2 Links).
-    \item Benchmarking verschiedener Planungsverfahren (LazyPRM vs. VisibilityPRM) in unterschiedlichen Szenarien.
+    \item Benchmarking verschiedener Planungsverfahren (\ac{LazyPRM} vs. \ac{VisibilityPRM}) in unterschiedlichen Szenarien.
     \item Durchführung einer Pick-and-Place Aufgabe, bei der ein Hindernis gegriffen und transportiert wird.
     \item Theoretische Betrachtung von Systemerweiterungen (translatorische Gelenke und Pfadglättung).
-\end{enumerate}
+\end{listArab}
 
-% ------------------------------------------------------------
-\section{Implementierung des CollisionCheckers}
-\label{sec:collision}
-
-\subsection{Modellierung des Roboters}
-Der Roboter wird durch... definiert. 
-% Hier beschreiben: Shape der Basis, Link-Liste, [5,1,[-3.14, 3.14]] etc.
-
-\subsection{Kollisionsprüfung und Eigenkollisionen}
-Die Funktion \texttt{CollisionChecker} wurde so implementiert, dass...
-% Hier beschreiben, wie du Aufgabe I.1 gelöst hast.
-% Code-Beispiel (falls nötig):
-% \begin{lstlisting}[language=Python]
-% def check_collision(config):
-%     # Code snippet
-%     return False
-% \end{lstlisting}
