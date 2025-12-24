@@ -6,6 +6,22 @@ from IPMultiGoalPlannerRunner import MultiGoalPlannerRunner
 
 class BatchEvaluator:
     @staticmethod
+    def _calc_path_distance(graph, path):
+        """Hilfsfunktion: Berechnet euklidische Länge eines Pfades."""
+        dist = 0.0
+        try:
+            for k in range(len(path) - 1):
+                u, v = path[k], path[k+1]
+                # Sicherstellen, dass Knoten im Graph sind
+                if u in graph.nodes and v in graph.nodes:
+                    p1 = np.array(graph.nodes[u]['pos'])
+                    p2 = np.array(graph.nodes[v]['pos'])
+                    dist += np.linalg.norm(p2 - p1)
+        except:
+            return np.nan
+        return dist
+    
+    @staticmethod
     def run_experiment(planner_factory, bench_list, num_runs=10):
         """
         Führt jeden Planner auf jedem Benchmark N-mal aus.
@@ -31,7 +47,8 @@ class BatchEvaluator:
                     # Variablen für Messung
                     start_time = time.time()
                     success = False
-                    path_length = np.nan
+                    path_length_nodes = np.nan
+                    path_length_euclid = np.nan
                     nodes_count = 0
                     fail_stage_label = "Success" # Default
                     
@@ -46,7 +63,8 @@ class BatchEvaluator:
                         nodes_count = planner.graph.number_of_nodes()
 
                         if success:
-                            path_length = len(full_path)
+                            path_length_nodes = len(full_path)
+                            path_length_euclid = BatchEvaluator._calc_path_distance(planner.graph, full_path)
                             fail_stage_label = "Success"
                         else:
                             # Wir schauen nach, welche Action bei diesem Segment geplant war
@@ -63,7 +81,8 @@ class BatchEvaluator:
                             
                             # Auch bei Teil-Pfaden haben wir eine Länge, 
                             # für Statistik ist aber NaN besser oder wir speichern partial_length separat
-                            path_length = np.nan
+                            path_length_nodes = np.nan
+                            path_length_euclid = np.nan
                         
                     except Exception as e:
                         # 3b. Fehler erfassen
@@ -79,7 +98,8 @@ class BatchEvaluator:
                         "RunID": run_id,
                         "Success": success,
                         "Time": duration,
-                        "PathLength": path_length,
+                        "PathNodes": path_length_nodes,
+                        "PathEuclid": path_length_euclid,
                         "GraphNodes": nodes_count,
                         "FailStage": fail_stage_label # NEUE SPALTE
                     }
