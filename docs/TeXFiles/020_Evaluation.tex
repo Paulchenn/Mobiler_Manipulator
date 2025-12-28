@@ -48,7 +48,11 @@ Der Roboterarm setzt sich aus zwei Segmenten und einem Greifer zusammen. Die kin
 \subsubsection{Konfigurationsraum}
 Da die Basis über drei Freiheitsgrade $(x, y, \theta_{base})$ verfügt und der Arm zwei rotatorische Gelenke aufweist, beschreibt ein \textbf{5-dimensionaler Konfigurationsvektor} $q$ den Zustand des Roboters vollständig:
 \begin{equation}
-    q = (x, y, \theta_{base}, \theta_{1}, \theta_{2})^T
+    q = 
+    \begin{bmatrix}
+        x & y & \theta_{base} & \theta_{1} & \theta_{2}
+    \end{bmatrix}
+    \label{eq:Konfigurationsvektor}
 \end{equation}
 Hierbei beschreiben $(x, y, \theta_{base})$ die Pose der Basis im Weltkoordinatensystem, während $\theta_{1}$ und $\theta_{2}$ die relativen Gelenkwinkel des Arms beschreiben.
 
@@ -140,7 +144,7 @@ Ein visueller Vergleich der erzeugten Graphen (Roadmaps) verdeutlicht die unters
     \label{fig:roadmap_comparison}
 \end{figure}
 
-Es ist zu erkennen, dass \ac{LazyPRM} den Freiraum mit einer hohen Anzahl an zufälligen Knoten \enquote{flutet} (siehe Abb.~\ref{fig:forest_lazy}). Dies führt zu einem sehr großen Graphen (im Mittel über 1000 Knoten), was die Speicherkomplexität erhöht. 
+Es ist zu erkennen, dass \ac{LazyPRM} den Freiraum mit einer hohen Anzahl an zufälligen Knoten \enquote{flutet} (siehe Abb.~\ref{fig:forest_lazy}). Dies führt zu einem sehr großen Graphen (im Mittel über 1000 Knoten), was die Speicherkomplexität erhöht.
 Im Gegensatz dazu reduziert \ac{VisibilityPRM} die Anzahl der Knoten signifikant (siehe Abb.~\ref{fig:forest_vis}), indem nur solche Konfigurationen zum Graphen hinzugefügt werden, die die Sichtbarkeit erweitern (Guard-Nodes) oder unabhängige Komponenten verbinden (Connector-Nodes).
 
 
@@ -214,3 +218,5 @@ Entgegen der Erwartung führt das Abschalten der Eigenkollisionsprüfung bei \ac
 
 \section{Diskussion der Ergebnisse}
 Zusammenfassend kann festgehalten werden, dass \ac{VisibilityPRM} für den betrachteten mobilen Manipulator die robustere Wahl darstellt, insbesondere in unübersichtlichen oder engen Umgebungen. Die höheren Rechenzeiten werden durch die Garantie gerechtfertigt, auch schwierige Passagen (wie Türen oder enge Korridore) zuverlässig zu finden. \ac{LazyPRM} eignet sich hingegen hervorragend für offene Areale oder Szenarien mit geringer Hindernisdichte, verliert jedoch an Zuverlässigkeit, sobald komplexe Ausweichmanöver oder die Berücksichtigung von Eigenkollisionen erforderlich sind.
+
+Zur dynamischen Visualisierung der geplanten Pfade steht im Jupyter Notebook (Datei: \texttt{Mobile\_Manipulator\_Main.ipynb}) eine Animations-Routine zur Verfügung. Durch Ausführen der entsprechenden Code-Zelle können die Bewegungsabläufe lokal reproduziert werden.
