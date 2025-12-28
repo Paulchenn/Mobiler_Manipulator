@@ -1,17 +1,192 @@
 \chapter{Pick-And-Place Szenario}
 \label{ch:pickplace}
 
-In diesem Szenario soll der mobile Manipulator einen Block greifen und an einer anderen Position ablegen. Da keine inverse Kinematik verwendet wird, werden die Zielpositionen explizit im Konfigurationsraum vorgegeben.
+In diesem Kapitel wird die Anwendung der implementierten Planungsverfahren auf eine komplexe Manipulationsaufgabe demonstriert. Ziel ist es, ein Objekt an einer definierten Position aufzunehmen (\enquote{Pick}), zu transportieren und an einer Zielposition abzulegen (\enquote{Place}).
 
-\section{Erweiterung der Kollisionsprüfung}
-Um das "Greifen" zu simulieren, wurde der \textit{CollisionChecker} erweitert. Sobald der Endeffektor das Objekt erreicht, wird das Hindernis (der Block) logisch an das letzte Segment des Roboterarms angehängt.
 
-\section{Ablauf der Simulation}
-Der Ablauf gliedert sich in drei Phasen:
+
+
+\section{Problemzerlegung und Sequenzierung}
+Da die verwendeten Sampling-basierten Planer (\ac{LazyPRM} und \ac{VisibilityPRM}) primär für Punkt-zu-Punkt-Verbindungen ausgelegt sind, wird die Gesamtaufgabe in eine Sequenz von Teilproblemen zerlegt. Die Ziele der Teilprobleme werden weiterhin durch einen 5-dimensionalen Konfigurationsvektor $q$ (Gl.~\ref{eq:Konfigurationsvektor}) definiert. Dieser wird erweitert mittels der zu absolvierenden Aufgabe 
+\begin{listNorm}
+    \item \enquote{Pick},
+    \item \enquote{Place} oder
+    \item \enquote{Move} (nichts ausführen)
+\end{listNorm}
+sowie ggf. eine \textit{Standoff-Konfiguration} $q_{standoff}$. Diese gliedert sich in einen Abstand in x- und einen in y-Richtung, vor der Zielposition (siehe Abschnitt \ref{subsec:standoff}):
+\begin{equation}
+    q_{standoff} = 
+    \begin{bmatrix}
+        dx_{standoff} & dy_{standoff}
+    \end{bmatrix}
+    \label{eq:standoff}
+\end{equation}. Alle Einzelziele der Teilprobleme werden in einer Matrix zusammengefasst:
+\begin{equation}
+    Q = 
+    \begin{bmatrix}
+        q_1 & \text{\enquote{Pick}} & q_{standoff} \\
+        q_2 & \text{\enquote{Move}} & \\
+        q_3 & \text{\enquote{Place}} & q_{standoff} \\
+        \vdots & \vdots & \vdots \\
+        q_n & \text{Aufgabe}_n & q_{standoff, n}
+    \end{bmatrix}
+\end{equation}
+
+Die Koordinaten des Abstands der Standoff-Position bezieht sich nur auf die $x$ und $y$ Koordinaten des Roboters. Die Ausrichtung $\theta_{base}$ sowie die Stellung der Armgelenke $\theta_1$ und $\theta_2$ ist an der Standoff-Position identisch zur eigentlich in $q_n$ definierten Zielposition. Realisiert wird dies durch die Klasse \texttt{MultiGoalPlannerRunner} (Datei \texttt{IPMultiGoalPlannerRunner.py}).
+
+Der Ablauf gliedert sich in folgende Phasen:
 \begin{enumerate}
-    \item \textbf{Anfahrt:} Der Roboter plant einen Pfad von der Startposition zur Pose des Blocks.
-    \item \textbf{Greifen:} Der Block wird Teil der Roboter-Kinematik.
-    \item \textbf{Transport:} Der Roboter (nun mit angehängtem Block) plant einen kollisionsfreien Pfad zur Zielablage.
+    \item \textbf{Global Move (Start $\to$ Pre-Grasp):} Der Planer berechnet einen kollisionsfreien Pfad von der Startkonfiguration zu einer Vor-Greif-Position (Standoff) in der Nähe des Objekts.
+    \item \textbf{Local Approach (Lineare Annäherung):} Der Roboter fährt linear interpoliert von der Standoff-Position zur exakten Greifposition.
+    \item \textbf{Pick (Greifen):} Das Objekt wird logisch an den Endeffektor angehängt und aus der Hindernisliste entfernt.
+    \item \textbf{Retreat (Rückzug):} Der Roboter fährt linear zurück zur Standoff-Position, nun mit dem Objekt am Greifer.
+    \item \textbf{Transport (Pre-Grasp $\to$ Pre-Place):} Ein neuer globaler Pfad wird geplant, um das Objekt zur Ablageposition zu bringen.
+    \item \textbf{Place (Ablegen):} Äquivalent zum Greifvorgang erfolgt eine Annäherung, das Loslassen des Objekts (wird wieder zum Hindernis) und der Rückzug.
 \end{enumerate}
 
-% Hier ggf. eine Bilderserie einfügen (Start -> Griff -> Ende)
+
+
+
+\section{Algorithmische Umsetzung}
+% Um diese Sequenz robust umzusetzen, wurden spezifische Erweiterungen implementiert.
+
+
+
+\subsection{Berechnung der Standoff-Position}
+\label{subsec:standoff}
+Ein direktes Anfahren der Greifposition mittels \ac{PRM} ist oft nicht zielführend, da der Zufalls-Sampler in unmittelbarer Nähe von Hindernissen (dem zu greifenden Objekt) ineffizient arbeitet. Stattdessen wird eine \textit{Standoff-Konfiguration} $q_{standoff}$ berechnet, die einen definierten Abstand zum Ziel hat.
+
+Gegeben sei die Zielkonfiguration $q_{\text{target}} = \left[\begin{matrix} x_t & y_t & \theta_t & \theta_{1t}& \theta_{2t}\end{matrix}\right]$ und ein lokaler Offset-Vektor $q_{\text{standoff,local}} = \left[\begin{matrix} dx_{\text{standoff}} & dy_{\text{standoff}}\end{matrix}\right]$, der den gewünschten Abstand in Relation zur Greifer-Orientierung beschreibt. Die Berechnung der Weltkoordinaten für den Standoff-Punkt erfolgt durch Rücktransformation:
+
+\begin{equation}
+    \begin{bmatrix} x_{standoff} \\ y_{standoff} \end{bmatrix} = 
+    \begin{bmatrix} x_{t} \\ y_{t} \end{bmatrix} - 
+    R(\theta_t) \cdot \begin{bmatrix} dx_{\text{standoff}} \\ dy_{\text{standoff}} \end{bmatrix}
+\end{equation}
+
+wobei $R(\theta_t)$ die Rotationsmatrix um den Winkel $\theta_t$ darstellt:
+\begin{equation}
+    R(\theta_t) = \begin{bmatrix} \cos\theta_t & -\sin\theta_t \\ \sin\theta_t & \cos\theta_t \end{bmatrix}
+\end{equation}
+
+In der Implementierung wird standardmäßig ein Offset von $0.6$ Einheiten in x-Richtung verwendet ($q_{\text{standoff,default}} = \left[\begin{matrix} 0.6 & 0.0\end{matrix}\right]$). Falls in der Zieldefinition jedoch ein spezifischer Offset hinterlegt ist (z.\,B. für seitliches Greifen), wird dieser priorisiert verwendet.
+
+
+
+\subsection{Handhabung des Objekts (Attach/Detach)}
+Ein kritischer Aspekt der Simulation ist der Zustandswechsel des manipulierten Objekts. 
+\begin{itemize}
+    \item \textbf{Vor dem Greifen:} Das Objekt ist ein statisches Hindernis in der Liste \texttt{obstacles} des CollisionCheckers.
+    \item \textbf{Nach dem Greifen (\texttt{attach\_object}):} 
+    Sobald der Greifzustand erreicht ist, wird das Objekt aus der Hindernisliste entfernt und stattdessen als Polygon an das letzte Segment des Roboterarms angehängt. Für die Kollisionsprüfung bedeutet dies, dass das Objekt nun Teil der Roboterkonfiguration ist und sich mitbewegt (siehe Abschnitt \ref{sec:self_collision}, Prüfung \enquote{Gegriffenes Objekt}).
+    \item \textbf{Beim Ablegen (\texttt{detach\_object}):} Das Objekt wird vom Roboter entfernt und an der aktuellen Position als neues statisches Hindernis in die Welt eingefügt.
+\end{itemize}
+
+
+
+
+\section{Simulation und Ergebnisse}
+\label{sec:pickplace_results}
+
+Die Validierung des implementierten \texttt{MultiGoalPlannerRunner} erfolgt exemplarisch in der Umgebung \textit{Empty World}. Diese Umgebung wurde gewählt, da sie eine klare visuelle Unterscheidung zwischen den globalen Pfadsegmenten (\ac{PRM}-basiert) und den lokalen Manipulationspfaden (linear interpoliert) ermöglicht, ohne dass Sichtlinien durch Hindernisse verdeckt werden. 
+
+
+
+\subsection{Qualitativer Vergleich der Roadmaps}
+Abbildung~\ref{fig:pick_place_comparison} stellt die generierten Roadmaps und Trajektorien beider Planungsverfahren gegenüber.
+
+\begin{figure}[htpb]
+    \centering
+    % VisibilityPRM
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Figures/png/Empty_World_PickPlace_visibilityPRM_SelfCheck.png}
+        \caption{VisibilityPRM}
+        \label{fig:pp_empty_vis}
+    \end{subfigure}
+    \hfill
+    % LazyPRM
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{Figures/png/Empty_World_PickPlace_lazyPRM_SelfCheck.png}
+        \caption{LazyPRM}
+        \label{fig:pp_empty_lazy}
+    \end{subfigure}
+    \caption{Vergleich der Pick-and-Place Sequenz in der Umgebung \textit{Empty World}. (a) Der VisibilityPRM erzeugt einen spärlichen, geometrisch optimierten Graphen. (b) Der LazyPRM flutet den Freiraum mit Knoten. In beiden Fällen ist die Sequenz: Start $\to$ Pick (oben) $\to$ Place (unten rechts) $\to$ Move (unten links) erfolgreich.}
+    \label{fig:pick_place_comparison}
+\end{figure}
+
+Es zeigen sich charakteristische Unterschiede:
+\begin{itemize}
+    \item \textbf{Struktur:} Während der \ac{VisibilityPRM} (Abb. \ref{fig:pp_empty_vis}) klare, direkte Verbindungen zwischen den Aktionspunkten schafft, ist die Lösung des \ac{LazyPRM} (Abb. \ref{fig:pp_empty_lazy}) durch eine hohe Dichte an redundanten Knoten und Kanten geprägt.
+    \item \textbf{Local Approach:} Bei beiden Verfahren ist der Übergang vom globalen Planer zur lokalen Interpolation deutlich erkennbar. Die \enquote{Stacheln} an den Greif- und Ablagepositionen repräsentieren die linearen Anfahrtswege (Approach/Retreat), die ohne den probabilistischen Planer berechnet werden.
+\end{itemize}
+
+
+
+\subsection{Quantitative Auswertung (Multi-Run)}
+\label{sec:pickplace_stats}
+
+Um die Robustheit der sequenziellen Planung zu bewerten, wird die Pick-and-Place Aufgabe in einem Batch-Prozess ($N=10$ Durchläufe) über alle fünf Benchmark-Szenarien hinweg evaluiert. Dabei wird analog zu Kapitel~\ref{sec:benchmarking} unterschieden zwischen aktivierter und deaktivierter Eigenkollisionsprüfung.
+
+
+
+\subsubsection{Performance mit Eigenkollisionsprüfung}
+Unter realistischen Bedingungen (aktiver Self-Check) zeigt sich, dass die Segmentierung der Aufgabe in Teilprobleme (\enquote{Pick}, \enquote{Place}, \enquote{Move}) zwar die Komplexität strukturiert, die Anforderungen an den Planer jedoch im Vergleich zur reinen Navigation signifikant steigen.
+
+Abbildung \ref{fig:pp_stats_check} zeigt exemplarisch die Ergebnisse in der \textit{Empty World}, während die detaillierten Ergebnisse der komplexen Szenarien im Anhang~\ref{sec:pp_erg_multiRun_SelfCheck} (Abb.~\ref{fig:pp_empty_world_bench_multi} bis \ref{fig:pp_shelf_reach_bench_multi}) aufgeführt sind.
+
+% PLATZHALTER BILD - Empty World
+\begin{figure}[htpb]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Figures/png/Empty_World_benchmark_pickPlace_multiRun_SelfChek.png} 
+    \caption{Statistische Auswertung der Pick-and-Place Aufgabe in \textit{Empty World} (mit Self-Check). Die Erfolgsrate misst das erfolgreiche Absolvieren der \textit{gesamten} Sequenz.}
+    \label{fig:pp_stats_check}
+\end{figure}
+
+Eine szenarienübergreifende Analyse liefert folgende Erkenntnisse:
+
+\begin{listNorm}
+    \item \textbf{Basis-Performance:} In der hindernisfreien Umgebung (\textit{Empty World}) erreichen beide Planer eine hohe Zuverlässigkeit (100\,\% Erfolg).
+    
+    \item \textbf{Einbruch bei LazyPRM in Clutter-Umgebungen:} 
+    Im Szenario \textit{Forest} offenbart sich eine signifikante Schwäche des \ac{LazyPRM}. Während der \ac{VisibilityPRM} hier weiterhin 100\,\% Erfolgsrate erzielt, fällt der \ac{LazyPRM} auf 10\,\% ab (siehe Anhang Abb. \ref{fig:pp_forest_bench_multi}). Die Fehleranalyse zeigt, dass das Scheitern fast ausschließlich im Segment \enquote{PICK} auftritt.\newline
+    \textit{Interpretation:} Das Greifen eines Objekts nahe an Hindernissen erfordert eine sehr spezifische Konfiguration. Da \ac{LazyPRM} den Raum zufällig sampelt und keine explizite Sichtbarkeitsstrategie nutzt, findet er in der begrenzten Zeit oft keinen gültigen Zugangspunkt zum Objekt.
+    
+    \item \textbf{Herausforderung Engstellen:}
+    In den Szenarien \textit{The Wall} und \textit{Narrow Passage} sinkt selbst die Erfolgsrate des \ac{VisibilityPRM} auf ca. 70\,\% (siehe Anhang Abb. \ref{fig:pp_the_wall_bench_multi} und \ref{fig:pp_narrow_passage_bench_multi}). Die Kombination aus präziser Basis-Navigation durch die Engstelle und anschließender Arm-Manipulation erhöht die Wahrscheinlichkeit, in lokale Minima zu geraten oder das Zeitlimit zu überschreiten.
+    
+    \item \textbf{Kinematische Grenzen:}
+    Das Szenario \textit{Shelf Reach} konnte von keinem der Planer gelöst werden (0\,\% Erfolg, siehe Anhang Abb. \ref{fig:pp_shelf_reach_bench_multi}). Dies verdeutlicht die physikalischen Grenzen des Robotersystems: Das Greifen hinter einem Hindernis unter Berücksichtigung der Eigenkollision erfordert eine komplexe Arm-Konfiguration, die durch reines Sampling in diesem 5D-Raum extrem schwer zu finden ist.
+\end{listNorm}
+
+
+
+\subsubsection{Einfluss der Eigenkollision auf die Manipulationsaufgabe}
+\label{sec:pickplace_stats_nocheck}
+
+Abschließend wurden alle Szenarien erneut ohne aktive Eigenkollisionsprüfung evaluiert. Abbildung~\ref{fig:pp_stats_empty_noCheck} zeigt die Ergebnisse der Referenzumgebung.
+
+% BILD: Empty World OHNE Check
+\begin{figure}[htpb]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Figures/png/Empty_World_benchmark_pickPlace_multiRun_noSelfCheck.png} 
+    \caption{Statistische Auswertung der Pick-and-Place Aufgabe in \textit{Empty World} (ohne Self-Check).}
+    \label{fig:pp_stats_empty_noCheck}
+\end{figure}
+
+Der Vergleich mit den komplexen Szenarien im Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck} (Abb.~\ref{fig:pp_empty_world_bench_multi_noSelfCheck} bis \ref{fig:pp_shelf_reach_bench_multi_noSelfCheck}) liefert wichtige differenzierte Erkenntnisse:
+
+\begin{enumerate}
+    \item \textbf{Einfluss des Objekt-Hindernisses (LazyPRM im Forest):} 
+    Im Szenario \textit{Forest} bricht die Erfolgsrate des \ac{LazyPRM} im Pick-and-Place Test auf 10\,\% ein (vgl. Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck} Abb.~\ref{fig:pp_forest_bench_multi_noSelfCheck}). Dies ist bemerkenswert, da der Planer in isolierten Navigations-Tests denselben Standoff-Punkt zuverlässig erreicht.
+    \newline
+    \textit{Ursachenanalyse:} Der Unterschied liegt in der Instanziierung des zu greifenden Objekts als zusätzliches Hindernis. Im reinen Navigations-Test war der Raum um die Zielkoordinate frei. Im Pick-Szenario blockiert das Objekt-Polygon nun diesen Bereich. Auch wenn der Standoff-Punkt (0.6\,m Abstand) selbst kollisionsfrei ist, reduziert das Objekt das Volumen der validen Konfigurationen in der Zielumgebung massiv. Pfade, die zuvor durch den Objekt-Raum führten, sind nun invalide. Es entsteht eine lokale Engstelle (\enquote{Narrow Passage}) um das Ziel, die für den probabilistischen Ansatz des \ac{LazyPRM} deutlich schwerer zu finden ist als der zuvor freie Raum. Da \ac{LazyPRM} Kanten lazy validiert und keine explizite Strategie besitzt, um Knoten exakt an Hindernisgrenzen zu platzieren (im Gegensatz zu den Guard-Nodes des \ac{VisibilityPRM}), werden Verbindungspfade zum Ziel, die das Objekt-Hindernis minimal tangieren, häufig als Kollision verworfen. Der Planer findet somit den \enquote{Zugang} zum Objekt nicht.
+
+    \item \textbf{Bestätigung kinematischer Limits:} Im Szenario \textit{Shelf Reach} führt auch die Deaktivierung der Eigenkollision zu keinem Erfolg (0\,\%, siehe Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck} Abb.~\ref{fig:pp_shelf_reach_bench_multi_noSelfCheck}). Dies untermauert die These, dass die Komplexität der Regal-Umgebung den Lösungsraum so stark einschränkt, dass dieser mit Standard-Sampling-Dichten praktisch unauffindbar bleibt.
+
+    \item \textbf{Transport-Phase:} 
+    Lediglich in den wenigen erfolgreichen Läufen zeigt sich eine leichte Reduktion der Pfadkosten, da der Roboter das Objekt beim Transport \enquote{durch sich selbst} ziehen kann, um die Distanz zu verkürzen.
+\end{enumerate}
+
+Zusammenfassend bestätigt die Auswertung, dass für Manipulationsaufgaben in engen Umgebungen die Wahl des Planers (\ac{VisibilityPRM} vs. \ac{LazyPRM}) und die Sampling-Strategie entscheidender sind als die reine Relaxierung von Kollisionsbedingungen.
