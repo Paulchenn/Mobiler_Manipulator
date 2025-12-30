@@ -1,38 +1,63 @@
-\chapter{Theoretische Erweiterungen}
+\chapter{Theoretische Konzepte und Erweiterungen}
 \label{ch:theorie}
 
-Dieser Abschnitt behandelt weiterführende Konzepte, die über die aktuelle Implementierung hinausgehen. Insbesondere wird diskutiert, wie translatorische Gelenke integriert werden können und wie die geplanten Bahnen geglättet werden können.
+Dieser Abschnitt behandelt weiterführende Fragestellungen der Roboterbahnplanung, die über die Implementierung des planaren Manipulators hinausgehen. Gemäß der Aufgabenstellung werden im Folgenden die notwendigen Systemerweiterungen für translatorische Gelenke sowie Methoden zur nachträglichen Bahnoptimierung diskutiert.
 
 \section{Erweiterung um translatorische Gelenke}
-Bisher betrachtet das System eine mobile Basis $(x, y)$ und rotatorische Gelenke ($\theta_1, \theta_2$). Ein translatorisches Gelenk (Prisma-Gelenk) ändert die Länge eines Segments oder verschiebt Segmente linear zueinander.
+Das in dieser Arbeit betrachtete System besteht aus einer mobilen Basis (3 Freiheitsgrade) und einem Arm mit rotatorischen Gelenken (Revolute Joints). Ein translatorisches Gelenk (Prisma-Gelenk) ermöglicht hingegen eine lineare Relativbewegung zwischen zwei Segmenten, was sowohl den Arbeitsraum als auch die kinematische Modellierung beeinflusst \cite{siciliano2016}.
 
-\subsection{Auswirkung auf den Konfigurationsraum (C-Space)}
-Während rotatorische Gelenke periodisch sein können (z.B. $-\pi$ bis $\pi$), sind translatorische Gelenke durch feste lineare Grenzen definiert (z.B. $0$ bis $d_{max}$ Meter).
-% HIER MEHR TEXT EINFÜGEN:
-% Erkläre, dass sich die Topologie des C-Space ändert.
-% Erkläre, dass beim Sampling für dieses Gelenk nun Meter statt Radiant gewürfelt werden müssen.
+\subsection{Auswirkung auf die Kinematik}
+In der Vorwärtskinematik wird die Lage eines Segments relativ zum vorherigen Segment üblicherweise durch homogene Transformationsmatrizen $T$ beschrieben. 
 
-\subsection{Notwendige Anpassungen in der Implementierung}
-Um dies im bestehenden Code zu realisieren, müssten folgende Stellen angepasst werden:
+Für ein **rotatorisches Gelenk** rotiert das lokale Koordinatensystem um die Gelenkachse (z.\,B. z-Achse) um den variablen Winkel $\theta$. Die Matrix hat die Form:
+\begin{equation}
+    T_{rot}(\theta) = \begin{pmatrix}
+    \cos\theta & -\sin\theta & 0 & 0 \\
+    \sin\theta & \cos\theta & 0 & 0 \\
+    0 & 0 & 1 & 0 \\
+    0 & 0 & 0 & 1
+    \end{pmatrix}
+\end{equation}
+
+Für ein **translatorisches Gelenk** ist die Rotation statisch, während die Verschiebung $d$ entlang der Gelenkachse variabel ist. Die Transformationsmatrix ändert sich folglich zu:
+\begin{equation}
+    T_{trans}(d) = \begin{pmatrix}
+    1 & 0 & 0 & 0 \\
+    0 & 1 & 0 & 0 \\
+    0 & 0 & 1 & d \\
+    0 & 0 & 0 & 1
+    \end{pmatrix}
+\end{equation}
+
+\textbf{Implementierungstechnische Konsequenzen:}
+Für die Integration in den bestehenden \texttt{CollisionChecker} müsste die Methode zur Berechnung der Robotergeometrie (\texttt{get\_robot\_geometry}) angepasst werden. Anstatt für jedes Gelenk den Winkel zu akkumulieren, müsste für Prisma-Gelenke die effektive Länge des Segments dynamisch berechnet werden. Das Gelenk $q_i$ würde direkt als Längenänderung in die Berechnung der Endpunktkoordinaten eingehen.
+
+\subsection{Anpassung des Konfigurationsraums (C-Space)}
+Die Einführung translatorischer Freiheitsgrade verändert die Topologie und die Metrik des Konfigurationsraums \cite{lavalle2006}:
 \begin{itemize}
-    \item \textbf{Vorwärtskinematik:} Die Transformationsmatrix ändert sich. Statt einer reinen Rotation fließt der Gelenkparameter $d$ in den Translationsvektor der Matrix ein.
-    \item \textbf{Sampling:} Der Sampler muss wissen, ob ein Gelenk vom Typ "revolute" oder "prismatic" ist, um im korrekten Wertebereich zu samplen.
+    \item \textbf{Wertebereich und Topologie:} Während rotatorische Gelenke meist periodisch definiert sind ($-\pi$ bis $\pi$), sind translatorische Gelenke durch feste mechanische Anschläge begrenzt ($d_{min}$ bis $d_{max}$). Mathematisch betrachtet ändert sich die Topologie des Gelenks von einem Kreis ($S^1$)\footnote{Die Topologie $S^1$ (1-Sphäre) beschreibt einen kreisförmigen Raum, bei dem die Werte periodisch umlaufen, d.\,h. $-\pi$ und $\pi$ sind identisch.} zu einer Linie ($\mathbb{R}$).
+    \item \textbf{Sampling und Metrik:} Wie bereits bei der mobilen Basis ($x, y$ in \ac{LE}, $\theta$ in Radiant), liegen auch bei einem Arm mit translatorischen Gelenken gemischte Einheiten vor. Dies stellt besondere Anforderungen an die Distanzfunktion (Metrik) für die \textit{Nearest-Neighbor}-Suche. Da eine Differenz von $1\,\text{\ac{LE}}$ nicht äquivalent zu $1\,\text{rad}$ ist, muss zwingend eine \textbf{gewichtete Euklidische Metrik} verwendet werden. Hierbei werden die translatorischen und rotatorischen Dimensionen mit Gewichtungsfaktoren $w_i$ skaliert, um einen homogenen Abstandsraum zu schaffen.
 \end{itemize}
 
 \section{Optimierung und Glättung von Bewegungsbahnen}
-Die von PRM-Algorithmen (Probabilistic Roadmaps) erzeugten Pfade bestehen oft aus linearen Segmenten zwischen zufällig gewürfelten Punkten. Dies führt zu eckigen, ruckartigen Bewegungen, die mechanisch ungünstig sind.
+Die von Sampling-basierten Algorithmen erzeugten Pfade bestehen naturgemäß aus linearen Segmenten zwischen zufällig platzierten Wegpunkten. Dies resultiert oft in \enquote{zackigen}, suboptimalen Bahnen mit abrupten Richtungsänderungen. Eine Nachbearbeitung (Post-Processing) ist daher essenziell \cite{choset2005}.
 
-\subsection{Shortcut-Methode (Post-Processing)}
-Ein einfacher Ansatz ist das "Pruning" oder die Shortcut-Methode:
+\subsection{Shortcut-Methode (Pruning)}
+Ein effizienter Ansatz zur Reduktion der Pfadlänge ist die heuristische Shortcut-Methode. Dieser Algorithmus arbeitet iterativ auf dem initialen diskreten Pfad:
+
 \begin{enumerate}
-    \item Wähle zwei nicht benachbarte Punkte auf dem gefundenen Pfad.
-    \item Prüfe, ob eine direkte Verbindung (Linie) zwischen ihnen kollisionsfrei ist.
-    \item Falls ja: Ersetze den ursprünglichen Teilpfad durch die direkte Linie.
+    \item Es werden zwei zufällige Konfigurationen $q_a$ und $q_b$ auf dem Pfad ausgewählt, die nicht direkt benachbart sind.
+    \item Es wird geprüft, ob die direkte Verbindungslinie (Line-of-Sight) im Konfigurationsraum zwischen $q_a$ und $q_b$ kollisionsfrei ist.
+    \item Ist die Verbindung valide, werden alle dazwischenliegenden Wegpunkte entfernt und durch die direkte Kante ersetzt.
 \end{enumerate}
-Dies reduziert die Pfadlänge signifikant, behält aber die Ecken bei.
+Das Ergebnis ist ein stückweise linearer Pfad. Dieser ist zwar kürzer, bleibt jedoch lediglich $C^0$-stetig\footnote{$C^0$-Stetigkeit bedeutet, dass der Pfad zusammenhängend ist (keine Sprünge in der Position), aber Knicke aufweist. An diesen Knicken ist die Geschwindigkeit unstetig (der Roboter müsste theoretisch anhalten, um die Richtung zu ändern).}, was zu mechanisch ungünstigen Stopp-and-Go-Bewegungen an den Wegpunkten führt.
 
-\subsection{Verwendung von Splines}
-Für eine differenzierbare, weiche Bahn (glatte Geschwindigkeit und Beschleunigung) können B-Splines oder Bezier-Kurven verwendet werden. Hierbei dienen die Wegpunkte des PRM-Pfades als Kontrollpunkte für den Spline.
+\subsection{Glättung mittels Splines}
+Um eine kinematisch hochwertige Bahn zu generieren, können die Wegpunkte des optimierten Pfades durch Spline-Kurven approximiert werden. Ziel ist hierbei oft $C^2$-Stetigkeit\footnote{$C^2$-Stetigkeit bedeutet, dass nicht nur die Position und die Geschwindigkeit ($C^1$), sondern auch die Beschleunigung stetig verläuft. Dies ermöglicht ruckfreie Bewegungen.}.
 
-% Hier noch etwas Text ergänzen, um die Seite zu füllen. 
-% Z.B. über die Rechenzeit sprechen: Glättung kostet Zeit, schont aber den Roboter.
+\begin{itemize}
+    \item \textbf{B-Splines:} Die Wegpunkte des \ac{PRM}-Pfades dienen hierbei als Kontrollpunkte. Der resultierende Spline verläuft nicht zwingend durch die Punkte, sondern wird von ihnen approximiert. Dies garantiert einen glatten Verlauf, birgt jedoch das Risiko, dass die Kurve Hindernisse schneidet (\enquote{Corner Cutting}).
+    \item \textbf{Validierung:} Nach der Spline-Generierung muss die Kurve diskretisiert und erneut auf Kollisionsfreiheit geprüft werden. Sollten Kollisionen auftreten, können iterative Verfahren (z.\,B. Einfügen zusätzlicher Stützpunkte) angewandt werden, um den Pfad lokal zu deformieren und in den freien Raum zurückzuführen.
+\end{itemize}
+
+Eine Kombination aus der Shortcut-Methode für die globale Optimierung und anschließender Spline-Interpolation für die lokale Glättung stellt den Stand der Technik für mobile Manipulatoren dar.
