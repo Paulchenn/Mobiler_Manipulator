@@ -28,7 +28,7 @@ Die Geometrie wird in \textit{IPTestSuite.py} durch folgende Parameter definiert
 
 Der Roboterarm setzt sich aus zwei Segmenten und einem Greifer zusammen. Die kinematischen Parameter sind in Tabelle~\ref{tab:robot_params} aufgeführt.
 
-\begin{table}[H]
+\begin{table}[htbp]
     \centering
     \caption{Kinematische Parameter des Roboterarms}
     \label{tab:robot_params}
@@ -108,6 +108,28 @@ Die Benchmarks wurden auf einem MacBook Air M2 2022 (mit 16\,GB Speicher) durchg
     \item \textbf{Ohne Eigenkollisionsprüfung:} Zur Isolierung der algorithmischen Performance des Planers unabhängig von der Geometrie-Prüfung (siehe Diskussion in Abschnitt \ref{sec:self_check_impact}).
 \end{enumerate}
 
+Die für die Experimente verwendeten Konfigurationsparameter der Planer sind in Tabelle~\ref{tab:planner_config} aufgeführt.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Konfiguration der Planungsverfahren}
+    \label{tab:planner_config}
+    \begin{tabular}{l l l p{5cm}}
+        \toprule
+        \textbf{Planer} & \textbf{Parameter} & \textbf{Wert} & \textbf{Beschreibung} \\
+        \midrule
+        \multirow{1}{*}{VisibilityPRM} 
+        & ntry & 500 & Sampling-Versuche für Guards \\
+        \midrule
+        \multirow{4}{*}{LazyPRM} 
+        & Initial Roadmap Size & 500 & Hohe initiale Abdeckung (\enquote{Flooding}) \\
+        & Update Roadmap Size & 200 & Knoten pro Iteration bei Misserfolg \\
+        & k-Nearest & 12 & Erhöhte Konnektivität für 5D-Raum \\
+        & Max. Iterations & 15 & Obergrenze für Graphen-Wachstum \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
 Pro Szenario und Planer wurden $N=10$ Durchläufe (Runs) durchgeführt. Als Abbruchkriterien dienen das Finden eines Pfades oder das Erreichen der maximalen Knotenanzahl.
 
 Die fünf Testumgebungen sind in Anhang~\ref{sec:planungsumgebungen} dargestellt:
@@ -125,7 +147,7 @@ Die fünf Testumgebungen sind in Anhang~\ref{sec:planungsumgebungen} dargestellt
 \subsection{Qualitative Analyse der Roadmaps}
 Ein visueller Vergleich der erzeugten Graphen (Roadmaps) verdeutlicht die unterschiedlichen Strategien der Algorithmen. Abbildung \ref{fig:roadmap_comparison} zeigt die Roadmaps für das Szenario \textit{Forest}.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
     \centering
     \begin{subfigure}[b]{0.48\textwidth}
         \centering
@@ -173,7 +195,7 @@ Bezüglich der Rechenzeit bestätigt sich der theoretische Unterschied der Algor
 \end{itemize}
 
 % Statistik-Plot (Forest MIT Check)
-\begin{figure}[H]
+\begin{figure}[htbp]
     \centering
     % WICHTIG: Hier die Datei einbinden, die dem "WITH CHECK" Run entspricht!
     \includegraphics[width=1.0\textwidth]{Figures/png/Forest_benchmark_multiRun_SelfCheck.png} 
