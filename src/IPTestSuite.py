@@ -29,15 +29,13 @@ START = [[-3.0, -4.0, 0.0, np.pi/4, -np.pi/4]]
 # Format: (Koordinate, "AKTION", Rückzugsstrategie)
 # Aktion: "PICK", "PLACE", "MOVE"
 GOAL = [
-    ([2.0, 3.0, 0.0, np.pi/2, -np.pi/2],   "PICK",  [0.6, 0.0]),   # Fahr hin und greif was
-    ([3.0, -4.0, 0.0, 0.0, -np.pi/2],      "PLACE", [0.0, -0.6]),   # Fahr woanders hin und leg es ab
-    ([-3.0, -4.0, 0.0, np.pi/2, np.pi/2], "MOVE")   # Fahr woanders hin und leg es ab
+    ([2.0, 3.0, 0.0, np.pi/2, -np.pi/2],   "MOVE")
 ]
-
-# --------------------------------------------------------------------------------
-# LIMITS DEFINITION
-# --------------------------------------------------------------------------------
-LIMITS = [-6, 6]
+# GOAL = [
+#     ([2.0, 3.0, 0.0, np.pi/2, -np.pi/2],   "PICK",  [0.6, 0.0]),   # Fahr hin und greif was
+#     ([3.0, -4.0, 0.0, 0.0, -np.pi/2],      "PLACE", [0.0, -0.6]),   # Fahr woanders hin und leg es ab
+#     ([-3.0, -4.0, 0.0, np.pi/2, np.pi/2], "MOVE")   # Fahr woanders hin und leg es ab
+# ]
 
 # --------------------------------------------------------------------------------
 # ROBOTER DEFINITION (Zentralisiert)
@@ -63,6 +61,20 @@ ARM_OFFSET = (2, 1)
 # Diese Definition wird für alle Benchmarks verwendet
 PICK_OBJECT = [[0.0, -0.2], [0.4, -0.2], [0.4, -0.5], [0.7, -0.5], [0.7, 0.3], [0.4, 0.3], [0.4, 0.2], [0.0, 0.2]]
 
+# --------------------------------------------------------------------------------
+# LIMITS DEFINITION
+# --------------------------------------------------------------------------------
+LIMITS_X = [-6, 6]
+LIMITS_Y = [-6, 6]
+LIMITS_THETA_BASE = [-np.pi, np.pi]
+LIMITS_THETA_1 = [ROBOT_ARM_CONFIG[0][2][0], ROBOT_ARM_CONFIG[0][2][1]]
+LIMITS_THETA_2 = [ROBOT_ARM_CONFIG[1][2][0], ROBOT_ARM_CONFIG[1][2][1]]
+LIMITS = [LIMITS_X, LIMITS_Y, LIMITS_THETA_BASE, LIMITS_THETA_1, LIMITS_THETA_2]
+
+
+# --------------------------------------------------------------------------------
+# HELPER FUNCTION
+# --------------------------------------------------------------------------------
 def create_checker(obstacles):
     """Hilfsfunktion, um einen Checker mit Hindernissen zu erzeugen"""
     cc = CollisionChecker(
@@ -85,6 +97,7 @@ def create_checker(obstacles):
 
 benchList = list()
 
+
 # --------------------------------------------------------------------------------
 # Benchmark 1: Empty World (Sanity Check)
 # --------------------------------------------------------------------------------
@@ -100,8 +113,8 @@ goal_1  = [[10.0, 10.0, 1.57, 1.5, -1.5]]
 # Benchmark 2: The Wall (Doorway)
 # --------------------------------------------------------------------------------
 # Eine Wand bei X=5 mit einer Lücke bei Y=0
-wall_lower = Polygon([(-0.2, LIMITS[0]), (0.2, LIMITS[0]), (0.2, -1), (-0.2, -1)])
-wall_upper = Polygon([(-0.2, 1), (0.2, 1), (0.2, LIMITS[1]), (-0.2, LIMITS[1])])
+wall_lower = Polygon([(-0.2, LIMITS[1][0]), (0.2, LIMITS[1][0]), (0.2, -1), (-0.2, -1)])
+wall_upper = Polygon([(-0.2, 1), (0.2, 1), (0.2, LIMITS[1][1]), (-0.2, LIMITS[1][1])])
 obstacles_2 = [wall_upper, wall_lower]
 
 desc_2 = "Eine Wand mit einer Lücke. Der Roboter muss durchfahren."
@@ -114,8 +127,8 @@ goal_2  = [[10.0, 0.0, 0.0, 0.0, 0.0]]
 # Benchmark 3: Narrow Passage (Schwer)
 # --------------------------------------------------------------------------------
 # Ein sehr enger Gang. Basis ist 2m breit (von -1 bis 1). Lücke ist 3m breit.
-obs_left  = Polygon([(LIMITS[0], -2), (-1, -2), (-1, 2), (LIMITS[0], 2)])
-obs_right = Polygon([(1, -2), (LIMITS[1], -2), (LIMITS[1], 2), (1, 2)])
+obs_left  = Polygon([(LIMITS[0][0], -2), (-1, -2), (-1, 2), (LIMITS[0][0], 2)])
+obs_right = Polygon([(1, -2), (LIMITS[0][1], -2), (LIMITS[0][1], 2), (1, 2)])
 obstacles_3 = [obs_left, obs_right]
 
 desc_3 = "Narrow Passage. Erfordert präzise Basis-Bewegung."
@@ -149,7 +162,7 @@ goal_4  = [[12.0, 0.0, 0.0, 0.0, 0.0]]
 # Basis kann nicht zum Ziel (blockiert), Arm muss arbeiten.
 pick_shelf_lower = LineString([(0,2.25), (3.3, 2.25), (3.3, 3.25), (5.5-0.69,3.25)]).buffer(0.24, cap_style='flat', join_style='mitre')
 pick_shelf_upper = LineString([(0,4.75), (5.5-0.69,4.75)]).buffer(0.24, cap_style='flat', join_style='mitre')
-wall_right = LineString([(5.5,LIMITS[0]), (5.5,LIMITS[1])]).buffer(0.69, cap_style='flat', join_style='mitre')
+wall_right = LineString([(5.5,LIMITS[1][0]), (5.5,LIMITS[1][1])]).buffer(0.69, cap_style='flat', join_style='mitre')
 wall_lower = LineString([(0.0,-4.75), (3.75,-4.75), (3.75,-5.55), (5.5-0.69,-5.55)]).buffer(0.24, cap_style='flat', join_style='mitre')
 obstacles_5 = [pick_shelf_lower, pick_shelf_upper, wall_right, wall_lower]
 
