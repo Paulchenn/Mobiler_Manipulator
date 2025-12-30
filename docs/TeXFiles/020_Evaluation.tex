@@ -21,7 +21,7 @@ Der betrachtete mobile Manipulator besteht aus einer beweglichen Basis und einem
 \subsubsection{Geometrische Definition}
 Die Geometrie wird in \textit{IPTestSuite.py} durch folgende Parameter definiert:
 \begin{listNorm}
-    \item \textbf{Mobile Basis:} Die Basis ist als Rechteck modelliert (Shape: $[(0,0), (2,0), (2,1), (0,1)]$). Dies entspricht einer Länge von $2.0$ Einheiten und einer Breite von $1.0$ Einheit.
+    \item \textbf{Mobile Basis:} Die Basis ist als Rechteck modelliert (Shape: $[(0,0), (2,0), (2,1), (0,1)]$). Dies entspricht einer Länge von $2.0$ \ac{LE} und einer Breite von $1.0$ \ac{LE}.
     \item \textbf{Referenzpunkt:} Der lokale Ursprung der Basis (\enquote{Center}) wird auf die lokalen Koordinaten $(1.0, 0.5)$ festgelegt. Dies entspricht dem geometrischen Mittelpunkt der Basisfläche. Rotationen der Basis erfolgen um diesen Punkt.
     \item \textbf{Arm-Montage:} Der Roboterarm ist an der vorderen Kante der Basis montiert (Offset relativ zum Basis-Nullpunkt: $(2.0, 1.0)$).
 \end{listNorm}
@@ -130,6 +130,8 @@ Die für die Experimente verwendeten Konfigurationsparameter der Planer sind in 
     \end{tabular}
 \end{table}
 
+\newpage
+
 Pro Szenario und Planer wurden $N=10$ Durchläufe (Runs) durchgeführt. Als Abbruchkriterien dienen das Finden eines Pfades oder das Erreichen der maximalen Knotenanzahl.
 
 Die fünf Testumgebungen sind in Anhang~\ref{sec:planungsumgebungen} dargestellt:
@@ -145,7 +147,7 @@ Die fünf Testumgebungen sind in Anhang~\ref{sec:planungsumgebungen} dargestellt
 
 
 \subsection{Qualitative Analyse der Roadmaps}
-Ein visueller Vergleich der erzeugten Graphen (Roadmaps) verdeutlicht die unterschiedlichen Strategien der Algorithmen. Abbildung \ref{fig:roadmap_comparison} zeigt die Roadmaps für das Szenario \textit{Forest}.
+Ein visueller Vergleich der erzeugten Graphen (Roadmaps) verdeutlicht die unterschiedlichen Strategien der Algorithmen (siehe Abb.~\ref{fig:roadmap_comparison} für das Szenario \textit{Forest}).
 
 \begin{figure}[htbp]
     \centering
@@ -166,8 +168,8 @@ Ein visueller Vergleich der erzeugten Graphen (Roadmaps) verdeutlicht die unters
     \label{fig:roadmap_comparison}
 \end{figure}
 
-Es ist zu erkennen, dass \ac{LazyPRM} den Freiraum mit einer hohen Anzahl an zufälligen Knoten \enquote{flutet} (siehe Abb.~\ref{fig:forest_lazy}). Dies führt zu einem sehr großen Graphen (im Mittel über 1000 Knoten), was die Speicherkomplexität erhöht.
-Im Gegensatz dazu reduziert \ac{VisibilityPRM} die Anzahl der Knoten signifikant (siehe Abb.~\ref{fig:forest_vis}), indem nur solche Konfigurationen zum Graphen hinzugefügt werden, die die Sichtbarkeit erweitern (Guard-Nodes) oder unabhängige Komponenten verbinden (Connector-Nodes).
+Es ist zu erkennen, dass \ac{LazyPRM} den Freiraum mit einer hohen Anzahl an zufälligen Knoten \enquote{flutet}.
+Im Gegensatz dazu konzentriert \ac{VisibilityPRM} die Knoten in den Bereichen, in denen sich keine Hindernisse befinden (siehe Abb.~\ref{fig:forest_vis}), indem nur solche Konfigurationen zum Graphen hinzugefügt werden, die die Sichtbarkeit erweitern (Guard-Nodes) oder unabhängige Komponenten verbinden (Connector-Nodes).
 
 
 
