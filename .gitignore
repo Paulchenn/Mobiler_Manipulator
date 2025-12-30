@@ -56,7 +56,8 @@ site/
 *.lof
 *.lot
 *.out
-*.pdf
+thesis.pdf
+diagram.pdf
 *.run.xml
 *.synctex.gz
 *.toc
