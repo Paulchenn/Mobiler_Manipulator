@@ -10,7 +10,7 @@ class CollisionChecker:
     Now supports Pick & Place (Attach/Detach Objects).
     """
 
-    def __init__(self, base_shape, arm_config, gripper_config, gripper_len=0.0, arm_base_offset=(0, 0), base_center=None, object_shape=None, limits=[0.0, 22.0], intersect_limit=0.05, check_self_collision_flag=True):
+    def __init__(self, base_shape, arm_config, gripper_config, gripper_len=0.0, arm_base_offset=(0, 0), base_center=None, object_shape=None, limits=None, intersect_limit=0.05, check_self_collision_flag=True):
         self.base_shape_def = base_shape
         self.arm_config = arm_config
         self.gripper_config=gripper_config,
@@ -28,7 +28,14 @@ class CollisionChecker:
         self.intersect_limit = intersect_limit
         
         # Default Limits
-        self.limits = [limits] * self.getDim()
+        if limits!=self.getDim():
+            # self.limits_x = limits[0]
+            # self.limits_y = limits[1]
+            # self.limits_theta = limits[2]
+            # self.limits_1 = limits[3][0]
+            # self.limits_2 = limits[3][1]
+            self.limits = limits
+            
         # print(f"[CollisionChecker]: self.limits: {self.limits}; self.check_self_collision_flag: {self.check_self_collision_flag}")
 
         # ### NEU: Variable für das angehängte Objekt ###
@@ -73,10 +80,9 @@ class CollisionChecker:
         """Checks if a config is valid (Collision, Joint Limits & Workspace Boundaries)."""
         
         # 1. Check Joint Limits
-        joint_angles = config[3:]
-        for i, segment in enumerate(self.arm_config):
-            limits = segment[2]
-            if not (limits[0] <= joint_angles[i] <= limits[1]):
+        joint_angles = config[2:]
+        for i, segment in enumerate(self.limits[2:]):
+            if not (segment[0] <= joint_angles[i] <= segment[1]):
                 return True
             
         # 2. Geometry Calculation
