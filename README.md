@@ -1,94 +1,148 @@
-# Projekt: Mobiler Manipulator (CollisionChecker)
+# Mobile Manipulator: Collision Checking & Path Planning
 
-Dieses Repository beinhaltet die Implementierung und Evaluierung eines Systems für einen mobilen Roboter, entwickelt im Rahmen der Vorlesung **"Roboterprogammierung"** an der Hochschule Karlsruhe (HKA).
-
-**Semester:** Wintersemester 2025/2026  
-**Dozent:** Prof. Dr. Björn Hein  
-**Datum der Aufgabenstellung:** 08.12.2025
-
----
-
-## 📋 Projektübersicht
-
-Ziel ist die Implementierung eines **CollisionCheckers** für einen ebenen mobilen Roboter, der aus einer Basis und einem Arm mit rotatorischen Gelenken besteht. Darauf aufbauend werden Benchmark-Tests durchgeführt und ein Pick-and-Place Szenario realisiert.
-
-Die Planungsverfahren selbst (z.B. PRM) werden nicht verändert; der Fokus liegt auf der Kollisionsprüfung und der Modellierung des Roboters.
-
-## 🚀 Aufgaben & Features
-
-### 1. Implementierung des CollisionCheckers
-Der `CollisionChecker` ermöglicht die Planung für einen Roboter $(x,y)$ mit einem Arm (2 rotatorische Gelenke) unter Berücksichtigung von Hindernissen.
-
-* **Roboterbasis:**
-    * Frei definierbare Form (Shape).
-    * Startposition der Basis im Raum $(x,y)$ ist vorgebbar.
-    * Der Arm beginnt an einer definierten Position auf der Basis.
-* **Arm-Konfiguration:**
-    * Definition über eine Liste von Segmenten.
-    * Format: `[Länge, Dicke, [Min_Winkel, Max_Winkel]]`
-    * *Beispiel:* `[5.1, 1, [-3.14, 3.14], [-3.14, 3.14]]` (Länge 5.1, Dicke 1, Limits in Radians (Gelenk 1), Limits in Radians (Gelenk 2)).
-* **Kollisionsprüfung:**
-    * Implementierung der Hinderniserkennung.
-    * **Feature:** Ein-/Ausschalten von Eigenkollisionen (insbesondere Arm vs. Roboterbasis).
-* **Visualisierung:**
-    * Funktion zur Darstellung von Hindernissen und Roboter in einer gegebenen Konfiguration (analog zu `drawObstacles`).
-
-### 2. Evaluierung & Benchmarking
-Vergleich der Algorithmen **LazyPRM** und **VisibilityPRM** in mindestens 5 verschiedenen Benchmark-Umgebungen mit unterschiedlichem Schwierigkeitsgrad.
-
-- [ ] Vergleich des Verhaltens **mit** und **ohne** Eigenkollisionen.
-- [ ] Diskussion der Ergebnisse (siehe `docs/Endbericht`).
-- [ ] **Animationen:**
-    -   Bewegung des Roboters im Arbeitsraum.
-    -   Darstellung der Pfade im Konfigurationsraum (für 2-DoF / 3-DoF Systeme).
-
-### 3. Pick-and-Place Szenario
-Erweiterung des Systems, um Interaktionen mit der Umgebung zu simulieren.
-
-* Der CollisionChecker wurde erweitert, sodass die Spitze des letzten Armsegments ein Hindernis "greifen" (anhängen) kann.
-* **Demo:** Ein mobiler Roboter greift einen Block an Position A und legt ihn an Position B ab.
-* *Hinweis:* Positionen werden explizit vorgegeben (keine inverse Kinematik notwendig).
+**Course:** Robot Programming (Roboterprogrammierung)  
+**Institution:** Hochschule Karlsruhe (HKA) – Master Robotics and AI in Production (RKIM)  
+**Semester:** Winter Semester 2025/2026  
+**Lecturer:** Prof. Dr. Björn Hein
 
 ---
 
-## 📝 Endbericht & Theorie
+## 📖 Project Overview
 
-Der Endbericht (zu finden unter `docs/` oder als PDF) umfasst mindestens eine Seite und beantwortet zusätzlich folgende theoretische Fragen:
+This repository contains the implementation and evaluation of a planning system for a **planar mobile manipulator**. The system consists of a mobile base (3 Degrees of Freedom: $x, y, \theta$) and a robotic arm with two rotational joints (2 Degrees of Freedom), resulting in a 5-DOF configuration space.
 
-1.  **Erweiterung auf translatorische Gelenke:**
-    * Wie müsste das System erweitert werden, um auch Schubgelenke zu berücksichtigen?
-    * Welche Stellen im Code müssten konkret verändert werden?
-2.  **Bahnoptimierung:**
-    * Wie können die Bewegungsbahnen optimiert oder geglättet werden?
-    * Kurze Erläuterung einer möglichen Vorgehensweise.
+The core objective of this project is the development of a robust **Collision Checker** that handles:
+* **Base Collision:** Arbitrary geometric shapes for the mobile base against static obstacles.
+* **Arm Collision:** Multi-segment arm collision detection.
+* **Self-Collision:** Detection of collisions between the robot's arm and its own base.
 
-*Referenzierte Notebooks für Profiling:* `IP-X-0-Benchmarking-concept.ipynb` und `IP-X-1-Automated_PlanerTest.ipynb`.
+Furthermore, the project benchmarks probabilistic sampling-based planning algorithms—specifically **LazyPRM** and **VisibilityPRM**—and simulates a **Pick-and-Place** scenario without the use of inverse kinematics.
 
 ---
 
-## 🛠 Installation & Nutzung
+## ✨ Key Features
 
-Voraussetzungen: Python 3.x, Jupyter Notebook, Matplotlib, Numpy (und ggf. weitere Robotik-Bibliotheken der Vorlesung).
+### 1. Custom Collision Checker
+A geometric collision detection engine built from scratch (using `shapely` and `numpy`) that supports:
+* **Configurable Robot Design:** Define base shape, arm segment lengths, thicknesses, and joint limits.
+* **Environment Interaction:** Detects collisions with static obstacles defined in benchmark maps.
+* **Self-Collision Logic:** Toggleable checks to prevent the manipulator from clipping through the mobile base.
 
-1.  **Repository klonen:**
-    ```bash
-    git clone [https://github.com/USERNAME/REPO-NAME.git](https://github.com/USERNAME/REPO-NAME.git)
-    ```
+### 2. Planning Algorithms & Benchmarking
+Integration with sampling-based planners to evaluate performance in complex environments:
+* **Algorithms:** `LazyPRM` (multi-query, lazy evaluation) vs. `VisibilityPRM` (optimized for narrow passages).
+* **Metrics:** Success rate, path length, number of nodes/edges, and computation time.
+* **Batch Evaluation:** Automated runner for statistical analysis over multiple runs ($N=10+$).
 
-2.  **Abhängigkeiten installieren:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+### 3. Interactive Simulation
+* **Jupyter Notebook Interface:** Full control over the simulation via interactive widgets (sliders, dropdowns).
+* **Visualization:** Real-time plotting of the robot configuration ($q_1, q_2, x, y, \theta$), obstacles, start/goal states, and resulting paths.
+* **Pick-and-Place:** Simulation of attaching an object to the end-effector and transporting it to a target zone.
 
-3.  **Projekt ausführen:**
-    Öffnen Sie die entsprechenden `.ipynb` Dateien im Ordner `notebooks/`, um die Simulationen und Benchmarks zu starten.
+---
 
-## 📂 Dateistruktur
+## 📂 Repository Structure
+
+The project is organized as follows:
 
 ```text
-├── assets/             # Bilder und Benchmark-Maps
-├── docs/               # Endbericht und Dokumentation
-├── notebooks/          # Jupyter Notebooks (Simulation & Tests)
-├── src/                # Python Source Code (CollisionChecker Klasse)
-├── README.md           # Projektübersicht
-└── requirements.txt    # Python Dependencies
+├── assets/                 # Images, icons, and benchmark map definitions
+├── docs/                   # Documentation and LaTeX source for the final report
+│   ├── LaTeX/              # Thesis/Project report source files
+│   └── ...
+├── notebooks/              # Jupyter Notebooks (Main entry point)
+│   └── Mobile_Manipulator_Main.ipynb  # <--- START HERE
+├── src/                    # Source code for CollisionChecker and Planners
+│   ├── planners/           # Implementations of PRM, RRT, and Benchmarking tools
+│   ├── collision_checker.py# Core collision detection logic
+│   ├── IPAnimator.py       # Visualization tools
+│   ├── IPTestSuite.py      # Benchmark scenarios definition
+│   └── ...
+├── requirements.txt        # Python dependencies
+└── README.md               # Project documentation
+
+--
+
+## 🚀 Getting Started
+
+Follow these steps to set up the environment and run the simulation.
+
+Prerequisites
+
+Python 3.8+
+
+Jupyter Notebook or JupyterLab
+
+Installation
+
+Clone the Repository
+
+Bash
+git clone [https://github.com/YOUR_USERNAME/Mobiler_Manipulator.git](https://github.com/YOUR_USERNAME/Mobiler_Manipulator.git)
+cd Mobiler_Manipulator
+Create a Virtual Environment (Recommended)
+
+Bash
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# Linux/Mac
+source .venv/bin/activate
+Install Dependencies Install the required libraries (including numpy, matplotlib, networkx, shapely, ipympl):
+
+Bash
+pip install -r requirements.txt
+💻 Usage
+The entire project is controlled via the main Jupyter Notebook.
+
+1. Launch the Environment
+
+Start Jupyter in the repository root:
+
+Bash
+jupyter notebook
+2. Open the Main Controller
+
+Navigate to the notebooks/ folder and open Mobile_Manipulator_Main.ipynb.
+
+3. Run the Simulation
+
+Execute the cells in order. The notebook is structured into specific phases:
+
+Initialization: Loads the planner factory and benchmark scenarios (defined in IPTestSuite.py).
+
+Interactive Visualization: * Use the provided UI Widgets to manually move the robot joints and base.
+
+Test the Attach Object checkbox to simulate gripping.
+
+Observe the "COLLISION" or "FREE" status indicator in real-time.
+
+Planning & Benchmarking:
+
+Run the "Planning" cells to execute LazyPRM and VisibilityPRM on all loaded benchmarks.
+
+View the generated paths and success/failure logs.
+
+Evaluation:
+
+Run the "Batch Evaluator" to perform repeated tests (default: 10 runs).
+
+Generate boxplots and statistical data comparing the planners.
+
+📊 Documentation
+For a deep dive into the theoretical background, the extension to prismatic joints, and path optimization strategies, please refer to the project report located in the docs/ directory.
+
+The LaTeX documentation covers:
+
+System Modeling: Kinematic chains and configuration space.
+
+Algorithm Analysis: Comparison of Lazy vs. Visibility strategies.
+
+Future Work: Theoretical expansion to linear axes and trajectory smoothing.
+
+👥 Authors & Acknowledgments
+Development: Students of the Master's program Robotics and AI in Production (HKA).
+
+Supervision: Prof. Dr. Björn Hein.
+
+Developed for the "Roboterprogrammierung" module, Winter Semester 2025/2026.
