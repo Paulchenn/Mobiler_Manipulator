@@ -66,12 +66,14 @@ The project is organized as follows:
 
 Follow these steps to set up the environment and run the simulation.
 
-**Prerequisites**
+### Prerequisites
 
+* **Operating System:** Primary development and testing were conducted on **macOS**.
+  *(Note: The code is platform-agnostic, but Windows/Linux users may need to adjust terminal commands, such as virtual environment activation).*
 * **Python 3.8+**
 * **Jupyter Notebook** or **JupyterLab**
 
-**Installation**
+### Installation
 
 1. **Clone the Repository**
 
