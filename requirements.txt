@@ -19,3 +19,9 @@ shapely
 
 # --- Image Processing (Optional) ---
 Pillow
+
+# --- statistical data visualization ---
+seaborn
+
+# --- waitbars ---
+tqdm

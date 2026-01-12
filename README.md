@@ -90,10 +90,16 @@ Follow these steps to set up the environment and run the simulation.
     source .venv/bin/activate
     ```
 
-1. **Install Dependencies** Install the required libraries (including ```numpy```, ```matplotlib```, ```networkx```, ```shapely```, ```ipympl```):
+1. **Install Dependencies** Install the required libraries (including ```numpy```, ```matplotlib```, ```networkx```, ```shapely```, ```ipympl```) using the standard requirements file:
 
     ```bash
     pip install -r requirements.txt
+    ```
+
+    **Troubleshooting:** If you encounter version conflicts or missing libraries, it is recommended to create a fresh virtual environment (see Step 2) and install the complete dependency set with frozen versions:
+
+    ```bash
+    pip install -r requirements_all_version.txt
     ```
 
 ## 💻 Usage
