@@ -131,7 +131,7 @@ class IPAnimator:
         return trajectory
 
     @staticmethod
-    def animate_solution(plannerFactory, result, limits=(-10, 25), interval=50, step_size=0.25, nodeSize=20, progress_widget=None):
+    def animate_solution(plannerFactory, result, limits=[[-6, 6],[-6, 6]], interval=50, step_size=0.25, nodeSize=20, progress_widget=None):
         """
         Generates the HTML5 Animation with Split-Screen (Task Space & Graph).
         
@@ -189,6 +189,7 @@ class IPAnimator:
             progress_widget.bar_style = 'info'
         # ----------------------------------------
 
+
         # C. Setup Figure
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
         plt.close(fig) # Prevent static output
@@ -198,9 +199,11 @@ class IPAnimator:
         ax2.set_title(f"Graph Projection (X-Y)")
 
         # Limits
+        limits_x = limits[0]
+        limits_y = limits[1]
         for ax in [ax1, ax2]:
-            ax.set_xlim(limits)
-            ax.set_ylim(limits)
+            ax.set_xlim(limits_x)
+            ax.set_ylim(limits_y)
             ax.set_aspect('equal')
             ax.grid(True, alpha=0.3)
 
@@ -236,8 +239,8 @@ class IPAnimator:
             # 1. Update Workspace (Left)
             ax1.clear()
             # Reset properties after clear
-            ax1.set_xlim(limits)
-            ax1.set_ylim(limits)
+            ax1.set_xlim(limits_x)
+            ax1.set_ylim(limits_y)
             ax1.set_aspect('equal')
             ax1.grid(True, alpha=0.3)
             ax1.set_title(f"Step {frame}/{len(full_trajectory)}")
@@ -275,7 +278,7 @@ class IPAnimator:
     
     # --- NEUE UI METHODE ---
     @staticmethod
-    def create_interactive_viewer(plannerFactory, resultList, limits=(-10, 25)):
+    def create_interactive_viewer(plannerFactory, resultList, limits=[[-6, 6],[-6, 6]]):
         """
         Creates and returns an interactive widget (VBox) to select, view, and save animations.
         """

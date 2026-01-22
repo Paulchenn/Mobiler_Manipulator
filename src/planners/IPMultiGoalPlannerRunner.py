@@ -3,41 +3,47 @@ import numpy as np
 
 class MultiGoalPlannerRunner:
     """
-    Führt einen Pfadplaner sequenziell für mehrere Ziele aus und berücksichtigt
-    dabei Pick & Place Aktionen (definiert als Tupel in der goalList).
+    Executes a path planner sequentially for multiple goals while handling
+    Pick & Place actions (defined as tuples in the goalList).
     """
 
-    # Konfiguration für den Vor-Krampf (in Metern)
+    # Standoff distance configuration from target position (in meters)
     DEFAULT_APPROACH_VEC = [0.6, 0.0]
-    # Wie viele Zwischenschritte für die lineare Bewegung generiert werden sollen
+    # Number of interpolation steps for linear approach/retreat motions
     LINEAR_STEPS = 5
     
     @staticmethod
     def get_standoff_config(target_config, offset_vector):
         """
-        Berechnet den Standoff-Punkt basierend auf einem lokalen Offset-Vektor.
-        offset_vector = [dx, dy] (relativ zur Ausrichtung theta)
+        Calculates the standoff point based on a local offset vector relative to target orientation.
+        
+        Args:
+            target_config: Target configuration [x, y, theta]
+            offset_vector: Local offset [dx, dy] relative to target orientation theta
+            
+        Returns:
+            Standoff configuration with same orientation as target but offset position
         """
         x_target, y_target, theta = target_config[0], target_config[1], target_config[2]
 
         dx_local, dy_local = offset_vector
 
-        # Rotation des lokalen Offset-Vektors in das Welt-System
-        # Wir subtrahieren den Vektor, da wir den Punkt *vor* dem Ziel wollen
-        # Formel: P_standoff = P_target - R(theta) * V_offset
+        # Transform local offset vector to world frame using target orientation
+        # Formula: P_standoff = P_target - R(theta) * V_offset
+        # The subtraction places the standoff point "before" approaching the target
 
         cos_t = np.cos(theta)
         sin_t = np.sin(theta)
 
-        # Rotierter Vektor
+        # Apply 2D rotation matrix to offset vector
         dx_world = dx_local * cos_t - dy_local * sin_t
         dy_world = dx_local * sin_t + dy_local * cos_t
 
-        # Standoff berechnen (Target MINUS Offset)
+        # Compute standoff position (target position minus rotated offset)
         standoff_x = x_target - dx_world
         standoff_y = y_target - dy_world
         
-        # Konfiguration kopieren und Koordinaten überschreiben
+        # Copy configuration and update position coordinates
         standoff_config = target_config.copy()
         standoff_config[0] = standoff_x
         standoff_config[1] = standoff_y
@@ -46,11 +52,22 @@ class MultiGoalPlannerRunner:
     
     @staticmethod
     def interpolate_linear(start, end, steps):
-        """Erzeugt eine lineare Interpolation zwischen zwei Konfigurationen."""
+        """
+        Generate linear interpolation trajectory between two configurations.
+        
+        Args:
+            start: Starting configuration
+            end: End configuration
+            steps: Number of interpolation steps (excluding start, including end)
+            
+        Returns:
+            List of interpolated configurations
+        """
         trajectory = []
         s = np.array(start)
         e = np.array(end)
-        for i in range(1, steps + 1): # Start ist exklusive (haben wir schon), Ende inclusive
+        # Generate interpolation points (start exclusive, end inclusive)
+        for i in range(1, steps + 1):
             alpha = i / steps
             point = s * (1 - alpha) + e * alpha
             trajectory.append(point)
@@ -59,88 +76,89 @@ class MultiGoalPlannerRunner:
     @staticmethod
     def run_benchmark(planner, benchmark, config):
         """
-        Führt die Planung durch.
+        Execute multi-goal path planning with Pick & Place operations.
         
-        Erwartet im 'benchmark'-Objekt:
-            - benchmark.goalList: Liste von Zielen. 
-              Format A (Neu): [ (PosA, "PICK"), (PosB, "PLACE"), (PosC, "MOVE") ]
-              Format B (Alt): [ PosA, PosB, PosC ] (Aktionen sind dann implizit None)
-            - benchmark.objectShape (list): Polygon-Punkte des Objekts [[x,y], ...]
+        Expected benchmark object attributes:
+            - goalList: List of goal configurations. Supports two formats:
+                Format A (Recommended): [ (pos, "PICK"), (pos, "PLACE"), (pos, "MOVE") ]
+                Format B (Legacy): [ pos, pos, pos ] (implicit MOVE actions)
+            - objectShape: Polygon vertices defining object geometry [[x,y], ...]
+            
+        Returns:
+            tuple: (path, action_events, status)
+                - path: List of node IDs representing the full trajectory
+                - action_events: Dict mapping path indices to (action, object_shape) tuples
+                - status: Dict with success flag, failure segment index, and reason
         """
         
-        # --- 1. SETUP & CONTAINER ---
-        full_relabeled_path = []
-        full_roadmap_graph = nx.Graph()
-        full_colliding_edges = []       
-        full_non_colliding_edges = []   
+        # --- 1. INITIALIZATION & DATA STRUCTURES ---
+        full_relabeled_path = []              # Complete trajectory path
+        full_roadmap_graph = nx.Graph()      # Combined roadmap from all segments
+        full_colliding_edges = []            # Edges causing collisions
+        full_non_colliding_edges = []        # Valid collision-free edges
 
-        # NEU: Dictionary für Events {Index im Pfad : "ACTION"}
+        # Dictionary mapping path indices to (action_type, object_shape) events
         action_events = {}
         
         current_start = benchmark.startList 
         targets = benchmark.goalList
 
-        # object_shape = getattr(benchmark, 'objectShape', None)
-        # print(f"        [Setup] Object shape (benchmark): {object_shape}")
+        # Retrieve object shape from collision checker
         object_shape = planner._collisionChecker.get_object_shape()
-        # print(f"        [Setup] Object shape (planner): {object_shape}")
         
         last_segment_end_node = None
         current_world_obstacle_poly = None
 
-        # Status Tracking Variablen
-        failed_segment_index = -1 # -1 bedeutet Success
+        # Status tracking variables (-1 indicates success)
+        failed_segment_index = -1
         failed_reason = ""
         
-        # Sicherstellen, dass der Greifer am Anfang leer ist
+        # Ensure gripper is empty at start
         if hasattr(planner._collisionChecker, 'detach_object'):
             planner._collisionChecker.detach_object()
 
-        # --- 2. INITIALES OBJEKT PLATZIEREN (NEU!) ---
-        # Wir suchen den ersten "PICK" Befehl und platzieren das Objekt dort als Hindernis.
+        # --- 2. INITIAL OBJECT PLACEMENT ---
+        # Place object as static obstacle at first PICK location
         if object_shape is not None:
             for t in targets:
-                # Parsing Logic (Quick check)
-                # Check auf Tupel-Länge 2 oder 3
+                # Parse goal entry and check for PICK action (tuple format)
                 if isinstance(t, (tuple, list)) and len(t) >= 2 and t[1] == "PICK":
                     pick_config = t[0]
                     
-                    # Trick: Objekt kurz anhängen, um Welt-Position zu berechnen
+                    # Temporarily attach object to compute world frame position
                     planner._collisionChecker.attach_object(object_shape)
                     geo = planner._collisionChecker.get_robot_geometry(pick_config)
                     poly = geo.get('held_object')
                     planner._collisionChecker.detach_object()
                     
                     if poly is not None:
-                        # Als Hindernis hinzufügen
+                        # Add object as static obstacle in world frame
                         print(f"        [Setup] Initial object placed at Pick-Location as obstacle.")
                         planner._collisionChecker.obstacles.append(poly)
                         current_world_obstacle_poly = poly
-                    break # Wir nehmen an, das Objekt liegt beim ersten Pick
+                    break  # Object is placed at first PICK location
 
-        # --- 3. PLANUNGSSCHLEIFE ---
+        # --- 3. MAIN PLANNING LOOP ---
         for i, target_entry in enumerate(targets):
             
-            # 1. Ziel analysieren
+            # Parse goal entry to extract coordinates, action type, and approach offset
             actual_target_coords = None
             current_action = "MOVE"
             current_offset = MultiGoalPlannerRunner.DEFAULT_APPROACH_VEC
 
-            # print(target_entry)
             if isinstance(target_entry, (tuple, list)):
                 actual_target_coords = target_entry[0]
 
-                # Fall 2: (Config, Action) -> Länge 2
+                # Case: (Config, Action) - length 2
                 if len(target_entry) >= 2: current_action = target_entry[1]
-                # Fall 1: (Config, Action, Offset) -> Länge 3
+                # Case: (Config, Action, Offset) - length 3
                 if len(target_entry) >= 3: current_offset = target_entry[2]
 
-            # Fall 3: Nur Config -> Länge wurscht, interpretieren als Koordinaten
+            # Case: Config only (legacy format)
             else:
                 actual_target_coords = target_entry
 
-            # 2. Planungs-Ziel bestimmen (Standoff oder direkt?)
-            # Wenn PICK oder PLACE -> Fahre erst zum Standoff-Punkt
+            # Determine planning goal: standoff point for PICK/PLACE, direct target for MOVE
             if current_action in ["PICK", "PLACE"]:
                 planner_goal_coords = MultiGoalPlannerRunner.get_standoff_config(actual_target_coords, current_offset)
                 print(f"        [Runner] Segment {i}: {current_action} with offset {current_offset}. Planning to Standoff.")
@@ -150,25 +168,17 @@ class MultiGoalPlannerRunner:
 
             current_goal_list_for_planner = [planner_goal_coords]
 
-            # 3. GLOBAL PLANNING (Start -> Standoff)
-            # print(f"actual_target_coords: {actual_target_coords}")
-            # print(f"current_start: {current_start}")
-            # print(f"current_goal_list_for_planner: {current_goal_list_for_planner}")
-            # print(f"config: {config}")
-
-            # if i == 2:
-            #     print("My stop")
-            #     break
+            # Execute path planning from current start to planning goal
             segment = planner.planPath(current_start, current_goal_list_for_planner, config)
 
-            # --- FEHLERBEHANDLUNG (NEU: BREAK STATT EXCEPTION) ---
+            # Error handling: stop execution if no path found
             if segment is None or len(segment) == 0:
                 print(f"        [WARNING] No path found in segment {i} ({current_action})! Stopping execution here.")
                 failed_segment_index = i
                 failed_reason = f"Failed at Segment {i}: {current_action}"
-                break # <--- HIER BRECHEN WIR AB
+                break  # Abort execution on planning failure
             
-            # --- Graph Merging (Standard Path) ---
+            # Merge segment roadmap into full graph with unique node naming
             current_graph = planner.graph
             mapping = {node: f"s{i}_{node}" for node in current_graph.nodes()}
             relabeled_segment = [mapping[n] for n in segment]
@@ -176,6 +186,7 @@ class MultiGoalPlannerRunner:
             relabeled_graph = nx.relabel_nodes(current_graph, mapping)
             full_roadmap_graph = nx.compose(full_roadmap_graph, relabeled_graph)
             
+            # Preserve collision information from planner
             if hasattr(planner, 'collidingEdges'):
                 for u, v in planner.collidingEdges:
                     if u in mapping and v in mapping:
@@ -185,39 +196,35 @@ class MultiGoalPlannerRunner:
                     if u in mapping and v in mapping:
                         full_non_colliding_edges.append((mapping[u], mapping[v]))
 
+            # Connect previous segment end to current segment start
             if last_segment_end_node is not None:
                 full_roadmap_graph.add_edge(last_segment_end_node, relabeled_segment[0], connection="virtual") 
 
-            # Letzter Knoten des geplanten Pfades (das ist der Standoff Punkt!)
+            # Extend full path and track endpoint
             full_relabeled_path.extend(relabeled_segment)
             last_segment_end_node = relabeled_segment[-1]
 
-            # --- ACTION HANDLING ---
-            # Wo im Gesamtpfad sind wir JETZT (am Ende dieses Segments)?
-            # current_end_index = len(full_relabeled_path) - 1
-
-            # 4. LINEAR APPROACH & RETREAT LOGIC (Nur bei Pick/Place)
+            # --- ACTION EXECUTION (PICK/PLACE only) ---
             if current_action in ["PICK", "PLACE"]:
                 
-                # A) Hinfahren (Standoff -> Target)
-                # --------------------------------
+                # A) Linear approach: Standoff -> Target
                 approach_path = MultiGoalPlannerRunner.interpolate_linear(planner_goal_coords, actual_target_coords, MultiGoalPlannerRunner.LINEAR_STEPS)
                 
                 prev_node_id = last_segment_end_node
                 
+                # Add approach trajectory nodes to roadmap
                 for k, pt in enumerate(approach_path):
-                    # Fake Node erstellen
                     node_id = f"s{i}_approach_in_{k}"
                     full_roadmap_graph.add_node(node_id, pos=pt)
                     full_roadmap_graph.add_edge(prev_node_id, node_id, connection="linear")
                     full_relabeled_path.append(node_id)
                     prev_node_id = node_id
                 
-                # Jetzt sind wir AM Ziel (actual_target_coords). Hier passiert die Action.
+                # Now at target position - record action event index
                 current_end_index = len(full_relabeled_path) - 1
                 poly_to_activate_after_retreat = None
                 
-                # --- ACTION EXECUTION ---
+                # Execute PICK action: remove object from world, attach to gripper
                 if current_action == "PICK":
                     action_events[current_end_index] = ("PICK", object_shape)
                     
@@ -230,10 +237,11 @@ class MultiGoalPlannerRunner:
                         print(f"        [Action] PICK: Grasping.")
                         planner._collisionChecker.attach_object(object_shape)
                 
+                # Execute PLACE action: release object from gripper, add to world
                 elif current_action == "PLACE":
                     action_events[current_end_index] = ("PLACE", None)
                     
-                    # Position für Hindernis berechnen (am Zielpunkt)
+                    # Compute object position in world frame at target location
                     geo = planner._collisionChecker.get_robot_geometry(actual_target_coords)
                     placed_poly = geo.get('held_object')
                     
@@ -242,14 +250,13 @@ class MultiGoalPlannerRunner:
 
                     if placed_poly is not None:
                         print(f"        [Action] PLACE: Object becomes obstacle.")
-                        # Ghost Mode: Erst nach Retreat aktivieren
+                        # Activate obstacle after retreat to avoid self-collision
                         poly_to_activate_after_retreat = placed_poly
 
-                # B) Zurückfahren (Target -> Standoff)
-                # ------------------------------------
-                # Wir fahren zurück zum planner_goal_coords (Standoff)
+                # B) Linear retreat: Target -> Standoff
                 retreat_path = MultiGoalPlannerRunner.interpolate_linear(actual_target_coords, planner_goal_coords, MultiGoalPlannerRunner.LINEAR_STEPS)
                 
+                # Add retreat trajectory nodes to roadmap
                 for k, pt in enumerate(retreat_path):
                     node_id = f"s{i}_approach_out_{k}"
                     full_roadmap_graph.add_node(node_id, pos=pt)
@@ -257,21 +264,21 @@ class MultiGoalPlannerRunner:
                     full_relabeled_path.append(node_id)
                     prev_node_id = node_id
 
-                # Jetzt Objekt aktivieren
+                # Activate placed object in world frame
                 if poly_to_activate_after_retreat is not None:
                     planner._collisionChecker.obstacles.append(poly_to_activate_after_retreat)
                     current_world_obstacle_poly = poly_to_activate_after_retreat
                 
-                # Der Roboter steht jetzt wieder am Standoff Punkt.
-                # Das ist der Start für die nächste Runde.
+                # Robot returns to standoff point for next segment
                 current_start = [planner_goal_coords]
                 last_segment_end_node = prev_node_id
 
             else:
-                # MOVE Case: Wir sind am Ziel angekommen und bleiben da.
+                # MOVE action: robot remains at target location for next segment
                 current_start = [actual_target_coords]
 
-        # --- CLEANUP & FINALIZE ---
+        # --- CLEANUP & FINALIZATION ---
+        # Add marker nodes for start and goal in roadmap
         if full_relabeled_path:
             real_start = full_relabeled_path[0]
             if real_start in full_roadmap_graph.nodes:
@@ -280,16 +287,18 @@ class MultiGoalPlannerRunner:
             if real_goal in full_roadmap_graph.nodes:
                 full_roadmap_graph.add_node("goal", pos=full_roadmap_graph.nodes[real_goal]['pos'])
 
+        # Update planner with complete multi-goal roadmap
         planner.graph = full_roadmap_graph
         planner.collidingEdges = full_colliding_edges         
         planner.nonCollidingEdges = full_non_colliding_edges  
         
+        # Clean up gripper and remove any remaining static obstacles
         if hasattr(planner._collisionChecker, 'detach_object'):
             planner._collisionChecker.detach_object()
         if current_world_obstacle_poly in planner._collisionChecker.obstacles:
             planner._collisionChecker.obstacles.remove(current_world_obstacle_poly)
 
-        # NEUER RETURN WERT: Status Dictionary
+        # Build status dictionary with planning results
         status = {
             "success": (failed_segment_index == -1),
             "fail_segment": failed_segment_index,

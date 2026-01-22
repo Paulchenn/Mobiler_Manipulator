@@ -51,7 +51,7 @@ Die Einführung translatorischer Freiheitsgrade verändert die Topologie und die
     \item \textbf{Sampling und Metrik:} Wie bereits bei der mobilen Basis ($x, y$ in \ac{LE}, $\theta$ in Radiant), liegen auch bei einem Arm mit translatorischen Gelenken gemischte Einheiten vor. Dies stellt besondere Anforderungen an die Distanzfunktion (Metrik) für die \textit{Nearest-Neighbor}-Suche. Da eine Differenz von $1\,\text{\ac{LE}}$ nicht äquivalent zu $1\,\text{rad}$ ist, muss zwingend eine \textbf{gewichtete Euklidische Metrik} verwendet werden. Hierbei werden die translatorischen und rotatorischen Dimensionen mit Gewichtungsfaktoren $w_i$ skaliert, um einen homogenen Abstandsraum zu schaffen.
 \end{itemize}
 
-\newpage
+% \newpage
 
 
 
@@ -85,3 +85,22 @@ Um eine kinematisch hochwertige Bahn zu generieren, können die Wegpunkte des op
 \end{itemize}
 
 Eine Kombination aus der Shortcut-Methode für die globale Optimierung und anschließender Spline-Interpolation für die lokale Glättung stellt den Stand der Technik für mobile Manipulatoren dar.
+
+
+
+
+
+\section{Weitere Erweiterungsmöglichkeiten}
+Neben den theoretischen Konzepten zur Kinematik und Bahnoptimierung ergeben sich aus den Evaluationen (Kapitel~\ref{ch:evaluation} und~\ref{ch:pickplace}) konkrete Ansätze zur Verbesserung der implementierten Softwarearchitektur und der Planungsstrategien.
+
+\subsection{Optimierung der Kollisionsprüfung}
+Wie in Abschnitt~\ref{sec:quantitative_results} (\nameref{sec:quantitative_results}) beschrieben, kann die Reihenfolge der Prüfungen im \textit{CollisionChecker} optimiert werden. Da die Eigenkollisionsprüfung (\textit{Self-Collision}) bedeutend weniger Rechenzeit benötigt als die Sichtbarkeitsprüfung gegen externe Hindernisse, sollte diese vorgezogen werden. Es ist ineffizient, aufwendige Raycasts durchzuführen, wenn die Konfiguration bereits aufgrund einer internen Kollision ungültig ist.
+
+\subsection{Zeit-normalisiertes Benchmarking}
+Um die Leistungsfähigkeit der Planer fairer zu vergleichen, könnte ein \textit{Time-Budget}-Ansatz gewählt werden. Dabei erhalten beide Planer (\ac{LazyPRM} und \ac{VisibilityPRM}) exakt die gleiche Rechenzeit. Die Parameter der Planer werden so angepasst, dass sie dieses Zeitfenster optimal nutzen. Anschließend wird die Erfolgsrate (\textit{Success Rate}) als primäres Vergleichskriterium ausgewertet.
+
+\subsection{Entkoppelte Planung}
+Zur Steigerung der Geschwindigkeit und Qualität kann die Planung hierarchisch entkoppelt werden. Im ersten Schritt wird lediglich ein Pfad für die Basis ($x, y, \theta_\text{base}$) geplant, während die Armgelenke ($\theta_\text{1}, \theta_\text{2}$) in einer starren Transportkonfiguration verbleiben. Erst in der unmittelbaren Umgebung einer Pick- oder Place-Aktion wird der volle 5-dimensionale Konfigurationsraum betrachtet, um die notwendigen Armbewegungen zu planen.
+
+\subsection{Heuristisches Sampling für LazyPRM}
+Der aktuelle \ac{LazyPRM} verteilt neue Punkte in nachfolgenden Iterationen gleichverteilt über den gesamten Raum. Eine effizientere Strategie wäre es, diese Punkte gezielt an Engstellen zu platzieren. Dies kann beispielsweise dadurch erreicht werden, dass bevorzugt in der Nähe von Konfigurationen gesampelt wird, an denen zuvor unzulässige Kanten oder Knoten detektiert wurden, um so kritische Bereiche im Graphen gezielt aufzulösen.

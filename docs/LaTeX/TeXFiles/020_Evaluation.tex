@@ -14,7 +14,7 @@ Die Basis für die Pfadplanung bildet die korrekte kinematische und geometrische
 
 
 \subsection{Modellierung des Roboters}
-Der betrachtete mobile Manipulator besteht aus einer beweglichen Basis und einem seriellen Roboterarm. Die geometrische und kinematische Definition erfolgt parametrisch, um eine flexible Anpassung an verschiedene Szenarien zu gewährleisten.
+Der betrachtete mobile Manipulator besteht aus einer beweglichen Basis und einem seriellen Roboterarm. Die geometrische und kinematische Definition erfolgt parametrisch, um eine flexible Anpassung an verschiedene Szenarien zu gewährleisten. Abbildung~\ref{fig:robot_model} zeigt eine schematische Darstellung des hier betrachteten Roboters.
 
 
 
@@ -34,7 +34,7 @@ Der Roboterarm setzt sich aus zwei Segmenten und einem Greifer zusammen. Die kin
     \label{tab:robot_params}
     \begin{tabular}{l c c c}
         \toprule
-        \textbf{Komponente} & \textbf{Länge [m]} & \textbf{Dicke [m]} & \textbf{Winkelbereich [rad]} \\
+        \textbf{Komponente} & \textbf{Länge [LE]} & \textbf{Dicke [LE]} & \textbf{Winkelbereich [rad]} \\
         \midrule
         Segment 1 & 0.5 & 0.1 & $[0, \pi]$ \\
         Segment 2 & 1.0 & 0.1 & $[-\pi, \pi]$ \\
@@ -58,6 +58,16 @@ Hierbei beschreiben $(x, y, \theta_{base})$ die Pose der Basis im Weltkoordinate
 
 
 
+\subsubsection{Schematische Darstellung}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\VarPicWidthD]{Figures/png/robot_model.png} 
+    \caption{Schematische Darstellung des mobilen Manipulators mit 5 Freiheitsgraden. Die mobile Basis (blau) verfügt über 3 Freiheitsgrade $(x, y, \theta_{base})$, der Roboterarm mit zwei Segmenten (gelb) über 2 rotatorische Gelenke $(\theta_1, \theta_2)$. Der Greifer ist am Ende des zweiten Segments montiert.}
+    \label{fig:robot_model}
+\end{figure}
+
+
+
 
 \subsection{Kollisionsprüfung}
 \label{sec:collision_check}
@@ -73,7 +83,7 @@ Der Algorithmus prüft die Kriterien in folgender Reihenfolge. Sobald ein Kriter
     \item \textbf{Gelenkwinkelgrenzen:} Es wird geprüft, ob die Winkel $\theta_1$ und $\theta_2$ innerhalb der definierten Min/Max-Werte liegen.
     \item \textbf{Arbeitsraumgrenzen:} Es wird überprüft, ob irgendein Roboterteil die definierten Weltgrenzen (Limits) überschreitet.
     \item \textbf{Statische Hindernisse:} Jedes Segment des Roboters (Basis, Armsegmente, Greifer und ggf. gegriffenes Objekt) wird gegen die Liste der statischen Hindernisse (\texttt{obstacles}) auf Schnittmengen geprüft.
-    \item \textbf{Eigenkollision:} Abschließend erfolgt die Prüfung auf Kollisionen des Roboters mit sich selbst (siehe Abschnitt~\ref{sec:self_collision}).
+    \item \textbf{Eigenkollision:} Abschließend erfolgt die Prüfung auf Kollisionen des Roboters mit sich selbst (siehe folgender Abschnitt).
 \end{listArab}
 
 
@@ -91,6 +101,8 @@ Folgende Konflikte werden detektiert:
 \end{listNorm}
 
 Eine Überprüfung von Interaktionen zwischen benachbarten Armsegmenten entfällt. Konstruktionsbedingt wird davon ausgegangen, dass sich die Segmente überschneidungsfrei aneinander vorbei bewegen können.
+
+\newpage
 
 
 
@@ -122,15 +134,13 @@ Die für die Experimente verwendeten Konfigurationsparameter der Planer sind in 
         & ntry & 500 & Sampling-Versuche für Guards \\
         \midrule
         \multirow{4}{*}{LazyPRM} 
-        & Initial Roadmap Size & 500 & Hohe initiale Abdeckung (\enquote{Flooding}) \\
+        & Initial Roadmap Size & 500 & Initiale Abdeckung\\
         & Update Roadmap Size & 200 & Knoten pro Iteration bei Misserfolg \\
-        & k-Nearest & 12 & Erhöhte Konnektivität für 5D-Raum \\
+        & k-Nearest & 12 & Konnektivität \\
         & Max. Iterations & 15 & Obergrenze für Graphen-Wachstum \\
         \bottomrule
     \end{tabular}
 \end{table}
-
-\newpage
 
 Pro Szenario und Planer wurden $N=10$ Durchläufe (Runs) durchgeführt. Als Abbruchkriterien dienen das Finden eines Pfades oder das Erreichen der maximalen Knotenanzahl.
 
@@ -169,7 +179,7 @@ Ein visueller Vergleich der erzeugten Graphen (Roadmaps) verdeutlicht die unters
 \end{figure}
 
 Es ist zu erkennen, dass \ac{LazyPRM} den Freiraum mit einer hohen Anzahl an zufälligen Knoten \enquote{flutet}.
-Im Gegensatz dazu konzentriert \ac{VisibilityPRM} die Knoten in den Bereichen, in denen sich keine Hindernisse befinden (siehe Abb.~\ref{fig:forest_vis}), indem nur solche Konfigurationen zum Graphen hinzugefügt werden, die die Sichtbarkeit erweitern (Guard-Nodes) oder unabhängige Komponenten verbinden (Connector-Nodes).
+Im Gegensatz dazu konzentriert \ac{VisibilityPRM} die Knoten in den Bereichen, in denen sich keine Hindernisse befinden (siehe Abb.~\ref{fig:forest_vis}), indem nur solche Konfigurationen zum Graphen hinzugefügt werden, die die Sichtbarkeit erweitern (Guard-Nodes, in rot dargestellt) oder unabhängige Komponenten verbinden (Connector-Nodes, in hellblau dargestellt). Die Knoten, die nicht zur Sichtbarkeit beitragen, werden verworfen (in dunkelblau dargestellt).
 
 
 
@@ -182,9 +192,9 @@ Im ersten Schritt werden die Ergebnisse unter realitätsnahen Bedingungen, demna
 \subsubsection{Erfolgsrate und Robustheit}
 Die Ergebnisse zeigen eine klare Dichotomie zwischen den beiden Planungsansätzen:
 \begin{listNorm}
-    \item \textbf{Freie Umgebungen:} Im Szenario \textit{Empty World} erreichen beide Planer erwartungsgemäß eine Erfolgsrate von 100\,\% (siehe Anhang~\ref{sec:erg_multiRun_SelfCheck} Abb.~\ref{fig:empty_world_bench_multi}).
-    \item \textbf{Engstellen (The Wall, Narrow Passages):} In den Szenarien \textit{The Wall} und \textit{Narrow Passage} offenbart sich die Schwäche des \ac{LazyPRM}. Während \ac{VisibilityPRM} hier konstant 100\,\% Erfolgsrate erzielt, scheitert \ac{LazyPRM} vollständig (0\,\%). Dies bestätigt, dass reine Zufalls-Sampling-Strategien ohne heuristische Steuerung statistisch unwahrscheinlich kritische Engstellen im Konfigurationsraum finden (siehe Anhang~\ref{sec:erg_multiRun_SelfCheck}  Abb.~\ref{fig:the_wall_bench_multi} und~\ref{fig:narrow_passage_bench_multi}).
-    \item \textbf{Komplexe Umgebungen:} Im Szenario \textit{Forest} (viele Hindernisse) zeigt \ac{VisibilityPRM} seine Stärke mit 100\,\% Erfolg. \ac{LazyPRM} bricht hier ein und findet nur in 50\,\% der Fälle eine Lösung, da der Arm oft in \enquote{Sackgassen} zwischen den Hindernissen gerät (siehe Abb.~\ref{fig:forest_bench_multi} und Anhang~\ref{sec:erg_multiRun_SelfCheck}  Abb.~\ref{fig:shelf_reach_bench_multi}).
+    \item \textbf{Freie Umgebungen:} Im Szenario \textit{Empty World} erreichen beide Planer erwartungsgemäß eine Erfolgsrate von 100\,\% (siehe Anhang~\ref{sec:erg_multiRun_SelfCheck}, Abb.~\ref{fig:empty_world_bench_multi}).
+    \item \textbf{Engstellen (The Wall, Narrow Passages):} In den Szenarien \textit{The Wall} und \textit{Narrow Passage} offenbart sich die Schwäche des \ac{LazyPRM}. Während \ac{VisibilityPRM} hier konstant 100\,\% Erfolgsrate erzielt, scheitert \ac{LazyPRM} vollständig (0\,\%). Dies bestätigt, dass reine Zufalls-Sampling-Strategien ohne heuristische Steuerung statistisch unwahrscheinlich kritische Engstellen im Konfigurationsraum finden (siehe Anhang~\ref{sec:erg_multiRun_SelfCheck},  Abb.~\ref{fig:the_wall_bench_multi} und~\ref{fig:narrow_passage_bench_multi}).
+    \item \textbf{Komplexe Umgebungen:} Im Szenario \textit{Forest} (viele Hindernisse) zeigt \ac{VisibilityPRM} seine Stärke mit 100\,\% Erfolg. \ac{LazyPRM} bricht hier ein und findet nur in 50\,\% der Fälle eine Lösung, da der Arm oft in \enquote{Sackgassen} zwischen den Hindernissen gerät (siehe Abb.~\ref{fig:forest_bench_multi_SelfCheck} und Anhang~\ref{sec:erg_multiRun_SelfCheck},  Abb.~\ref{fig:shelf_reach_bench_multi}).
 \end{listNorm}
 
 Das Szenario \textit{Shelf Reach} erweist sich als das anspruchsvollste. Hier kann lediglich \ac{VisibilityPRM} in 20\,\% der Fälle eine Lösung finden, während \ac{LazyPRM} konstant scheitert.
@@ -202,8 +212,10 @@ Bezüglich der Rechenzeit bestätigt sich der theoretische Unterschied der Algor
     % WICHTIG: Hier die Datei einbinden, die dem "WITH CHECK" Run entspricht!
     \includegraphics[width=1.0\textwidth]{Figures/png/Forest_benchmark_multiRun_SelfCheck.png} 
     \caption{Statistische Auswertung für das Szenario \textit{Forest} (mit Eigenkollisionsprüfung). Oben links: Erfolgsrate (Visibility 100\,\%, Lazy 50\,\%). Unten links: Die Planungszeit von VisibilityPRM ist deutlich höher, korreliert aber mit der höheren Robustheit.}
-    \label{fig:forest_bench_multi}
+    \label{fig:forest_bench_multi_SelfCheck}
 \end{figure}
+
+\newpage
 
 
 
@@ -213,18 +225,16 @@ Bezüglich der Rechenzeit bestätigt sich der theoretische Unterschied der Algor
 
 Um den Einfluss der geometrischen Komplexität des Roboters auf die Planung zu untersuchen, wurden alle Szenarien erneut \textbf{ohne Eigenkollisionsprüfung} durchlaufen. Hierbei wird der Roboter effektiv als \enquote{Geist} behandelt, der sich selbst durchdringen darf. Ein Vergleich der Resultate im Anhang (vgl. Abschnitt~\ref{sec:erg_multiRun_SelfCheck} mit~\ref{sec:erg_multiRun_noSelfCheck}) liefert Rückschlüsse auf die Topologie des Konfigurationsraums.
 
-\newpage
-
 
 
 \subsubsection{Auswirkung auf die Erfolgsrate}
 Besonders signifikant ist der Unterschied im Szenario \textit{Forest}:
 \begin{itemize}
-    \item \textbf{Steigerung bei LazyPRM:} Die Erfolgsrate des \ac{LazyPRM} stieg von 50\,\% (mit Self-Check, siehe Abb.~\ref{fig:forest_bench_multi}) auf 100\,\% (ohne Self-Check, siehe Anhang Abb.~\ref{fig:forest_bench_multi_noCheck}).
+    \item \textbf{Steigerung bei LazyPRM:} Die Erfolgsrate des \ac{LazyPRM} stieg von 50\,\% (mit Self-Check, siehe Abb.~\ref{fig:forest_bench_multi_SelfCheck}) auf 100\,\% (ohne Self-Check, siehe Abb.~\ref{fig:forest_bench_multi_noSelfCheck}).
     \item \textbf{Interpretation:} Ohne die Beschränkung der Eigenkollision kann der Planer den Roboterarm durch sich selbst hindurch \enquote{falten}, um Hindernissen auszuweichen. Dies vereinfacht die Topologie des Konfigurationsraums erheblich: Bereiche, die zuvor durch die eigene Geometrie blockiert waren (Self-Collision-Regionen), werden passierbar. Der einfache Sampling-Ansatz des LazyPRM profitiert hiervon massiv.
 \end{itemize}
 
-Hingegen zeigt sich in den Engstellen-Szenarien (\textit{The Wall}, \textit{Narrow Passage}), dass die Deaktivierung der Eigenkollision keinen positiven Einfluss auf die Erfolgsrate des \ac{LazyPRM} hat (verbleibt bei ca. 0\,\%, vgl. Abb.~\ref{fig:narrow_passage_bench_multi} mit Abb.~\ref{fig:narrow_passage_bench_multi_noCheck}).
+Hingegen zeigt sich in den Engstellen-Szenarien (\textit{The Wall}, \textit{Narrow Passage}), dass die Deaktivierung der Eigenkollision keinen positiven Einfluss auf die Erfolgsrate des \ac{LazyPRM} hat (verbleibt bei ca. 0\,\%, vgl. Anhang~\ref{sec:erg_multiRun_noSelfCheck}, Abb.~\ref{fig:narrow_passage_bench_multi} mit Abb.~\ref{fig:narrow_passage_bench_multi_noCheck}).
 \begin{itemize}
     \item \textbf{Interpretation:} Das Scheitern in diesen Szenarien wird primär durch die externen Hindernisse (Wände) verursacht. Die \enquote{Narrow Passage} im Konfigurationsraum wird durch die Umwelt definiert, nicht durch die Roboterkonfiguration. Das Entfernen der Eigenkollision ändert nichts daran, dass der Roboter präzise durch die Türöffnung manövrieren muss.
 \end{itemize}
@@ -235,7 +245,17 @@ Hingegen zeigt sich in den Engstellen-Szenarien (\textit{The Wall}, \textit{Narr
 Entgegen der Erwartung führt das Abschalten der Eigenkollisionsprüfung bei \ac{VisibilityPRM} im Szenario \textit{Forest} nicht zu einer signifikanten Reduktion der Rechenzeit (ca. $140$\,s mit vs. ca. $150$\,s ohne Prüfung).
 \begin{itemize}
     \item \textbf{Analyse:} Dies deutet darauf hin, dass der dominierende Faktor im \ac{VisibilityPRM} die Anzahl der Sichtbarkeitsprüfungen (Raycasts) gegen die externen Hindernisse ist. Die Prüfung der Roboterkonfiguration selbst (Arm gegen Basis) ist im Vergleich zur Prüfung gegen komplexe Umgebungsgeometrien (viele Säulen im Wald) rechentechnisch weniger ins Gewicht fallend.
+    \item \textbf{Schlussfolgerung:} Da die Sichtbarkeitsprüfungen den Großteil der Rechenzeit beanspruchen, könnte beim hierarchischen Aufbau des \textit{CollisionCheckers} die Reihenfolge der Prüfungen optimiert werden. Beispielsweise könnte die Eigenkollisionsprüfung vor den Sichtbarkeitsprüfungen erfolgen, um unnötige Raycasts zu vermeiden, wenn die Konfiguration bereits als ungültig erkannt wurde.
 \end{itemize}
+
+% Statistik-Plot (Forest MIT Check)
+\begin{figure}[htbp]
+    \centering
+    % WICHTIG: Hier die Datei einbinden, die dem "WITH CHECK" Run entspricht!
+    \includegraphics[width=1.0\textwidth]{Figures/png/Forest_benchmark_multiRun_noSelfCheck.png} 
+    \caption{Statistische Auswertung für das Szenario \textit{Forest} (ohne Eigenkollisionsprüfung). Oben links: Erfolgsrate (Visibility 100\,\%, Lazy 100\,\%). Unten links: Die Planungszeit von VisibilityPRM bleibt hoch, da die Sichtbarkeitsprüfungen gegen externe Hindernisse dominieren.}
+    \label{fig:forest_bench_multi_noSelfCheck}
+\end{figure}
 
 
 
@@ -243,4 +263,4 @@ Entgegen der Erwartung führt das Abschalten der Eigenkollisionsprüfung bei \ac
 \section{Diskussion der Ergebnisse}
 Zusammenfassend kann festgehalten werden, dass \ac{VisibilityPRM} für den betrachteten mobilen Manipulator die robustere Wahl darstellt, insbesondere in unübersichtlichen oder engen Umgebungen. Die höheren Rechenzeiten werden durch die Garantie gerechtfertigt, auch schwierige Passagen (wie Türen oder enge Korridore) zuverlässig zu finden. \ac{LazyPRM} eignet sich hingegen hervorragend für offene Areale oder Szenarien mit geringer Hindernisdichte, verliert jedoch an Zuverlässigkeit, sobald komplexe Ausweichmanöver oder die Berücksichtigung von Eigenkollisionen erforderlich sind.
 
-Zur dynamischen Visualisierung der geplanten Pfade steht im Jupyter Notebook (Datei: \texttt{Mobile\_Manipulator\_Main.ipynb}) eine Animations-Routine zur Verfügung. Durch Ausführen der entsprechenden Code-Zelle können die Bewegungsabläufe lokal reproduziert werden.
+Zur dynamischen Visualisierung der geplanten Pfade steht im Jupyter Notebook (Datei \texttt{Mobile\_Manipulator\_Main.ipynb}) eine Animations-Routine zur Verfügung. Durch Ausführen der entsprechenden Code-Zelle können die Bewegungsabläufe lokal reproduziert werden.

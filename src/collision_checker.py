@@ -28,37 +28,36 @@ class CollisionChecker:
         self.intersect_limit = intersect_limit
         
         # Default Limits
-        if limits!=self.getDim():
-            # self.limits_x = limits[0]
-            # self.limits_y = limits[1]
-            # self.limits_theta = limits[2]
-            # self.limits_1 = limits[3][0]
-            # self.limits_2 = limits[3][1]
+        # print(len(limits))
+        # print(self.getDim())
+        if len(limits)==self.getDim():
             self.limits = limits
+        else:
+            # print(f"[CollisionChecker]: Warning - Limits dimension {len(limits)} does not match robot DoF {self.getDim()}. Using no limits.")
+            raise ValueError(f"[CollisionChecker]: Limits dimension {len(limits)} does not match robot DoF {self.getDim()}")
             
-        # print(f"[CollisionChecker]: self.limits: {self.limits}; self.check_self_collision_flag: {self.check_self_collision_flag}")
-
-        # ### NEU: Variable für das angehängte Objekt ###
-        # Speichert die Form des Objekts (als Polygon, zentriert um 0,0)
+        # Variable storing the shape of attached object (as polygon centered at origin)
+        # The origin (0,0) represents the gripper contact point
         self.attached_object_shape = None 
 
         self.object_shape = object_shape
 
-    # --- Pick & Place Interface (NEU) ---
+    # --- Pick & Place Interface ---
 
     def attach_object(self, object_polygon_points):
         """
-        Hängt ein Objekt an den End-Effector.
+        Attach an object to the end effector (gripper).
+        
         Args:
-            object_polygon_points: Liste von (x,y) Punkten, die das Objekt definieren.
-                                   Das Objekt sollte um (0,0) definiert sein.
-                                   (0,0) ist der Punkt, an dem der Greifer zugreift.
+            object_polygon_points: List of (x, y) coordinate tuples defining object geometry.
+                                   Object should be centered at origin (0, 0), which represents
+                                   the gripper contact point where the object is grasped.
         """
         self.attached_object_shape = Polygon(object_polygon_points)
         # print("[CollisionChecker] Object attached.")
 
     def detach_object(self):
-        """Entfernt das Objekt vom End-Effector."""
+        """Remove object from end effector (release from gripper)."""
         self.attached_object_shape = None
         # print("[CollisionChecker] Object detached.")
 
@@ -77,25 +76,25 @@ class CollisionChecker:
         return self.object_shape
 
     def pointInCollision(self, config):
-        """Checks if a config is valid (Collision, Joint Limits & Workspace Boundaries)."""
+        """Check if a configuration is valid (joint limits, workspace bounds, collisions)."""
         
-        # 1. Check Joint Limits
+        # 1. Check joint limits
         joint_angles = config[2:]
         for i, segment in enumerate(self.limits[2:]):
             if not (segment[0] <= joint_angles[i] <= segment[1]):
                 return True
             
-        # 2. Geometry Calculation
+        # 2. Compute robot geometry at configuration
         geo = self.get_robot_geometry(config)
         robot_parts = [geo['base']] + geo['arm_segments']
         robot_parts_wGripper = robot_parts + [geo['gripper']] if geo['gripper'] is not None else robot_parts
         
-        # ### NEU: Objekt zur Liste der zu prüfenden Teile hinzufügen ###
+        # Add held object to collision check list if attached
         if geo['held_object'] is not None:
             robot_parts.append(geo['held_object'])
             robot_parts_wGripper.append(geo['held_object'])
 
-        # 3. Geometric workspace limits check
+        # 3. Check geometric workspace limits
         if self.limits is not None:
             x_lim = self.limits[0]
             y_lim = self.limits[1]
@@ -107,19 +106,19 @@ class CollisionChecker:
                 if miny < y_lim[0] or maxy > y_lim[1]:
                     return True
 
-        # 4. Obstacles check
+        # 4. Check collisions with static obstacles
         for part in robot_parts_wGripper:
             for obs in self.obstacles:
                 if part.intersects(obs):
                     return True
 
-        # 5. Self Collision
+        # 5. Check self-collisions
         if self.check_self_collision_flag:
             base = geo['base']
             arm_segments = geo['arm_segments']
             gripper = geo['gripper']
 
-            # A) Wir prüfen Armsegmente gegen Basis und Gripper
+            # Check arm segments against base and gripper
             for seg in arm_segments:
                 if seg.intersection(base).area > self.intersect_limit:
                     return True
@@ -127,37 +126,46 @@ class CollisionChecker:
                     if seg != arm_segments[-1]:
                         return True
                     
-            # B) Wir prüfen Gripper gegen Basis:
+            # Check gripper against base
             if gripper.intersects(base):
                 return True
                     
-            # B) Wir prüfen das getragene Objekt (falls vorhanden)
+            # Check held object against robot parts (if attached)
             if geo['held_object'] is not None:
                 obj = geo['held_object']
 
-                # 1. Gegen die Basis
+                # 1. Check against base
                 if obj.intersects(base):
                      if obj.intersection(base).area > self.intersect_limit:
                         return True
                      
-                # 2. Gegen die Armsegmente (NEU!)
-                # Das Objekt hängt am letzten Segment (Index = len - 1).
-                # Wir prüfen gegen alle Segmente AUSSER dem letzten.
+                # 2. Check against arm segments
+                # Object is attached to last arm segment, so check against all segments except the last
                 last_segment_index = len(arm_segments) - 1
 
                 for i, seg in enumerate(arm_segments):
-                    # Überspringe das Segment, an dem das Objekt hängt (führt sonst immer zu Kollision)
+                    # Skip the segment where object is attached (would always cause collision)
                     if i == last_segment_index:
                         continue
                         
                     if obj.intersects(seg):
-                        # Wir nutzen auch hier intersect_limit für Robustheit
+                        # Use intersect_limit for robustness
                         if obj.intersection(seg).area > self.intersect_limit:
                             return True
 
         return False
 
     def lineInCollision(self, config1, config2, step_size=0.2):
+        """Check if a linear path between two configurations is collision-free.
+        
+        Args:
+            config1: Starting configuration
+            config2: Ending configuration
+            step_size: Distance between interpolation points along the path
+            
+        Returns:
+            True if path collides, False if collision-free
+        """
         p1 = np.array(config1)
         p2 = np.array(config2)
         dist = np.linalg.norm(p2 - p1)
@@ -170,109 +178,147 @@ class CollisionChecker:
                 return True
         return False
 
-    # --- Internal Geometry Logic ---
+    # --- Robot Geometry Computation ---
 
     def set_obstacles(self, obstacle_list):
+        """Set static obstacle polygons in the environment.
+        
+        Args:
+            obstacle_list: List of obstacle geometries, each as a list of (x, y) coordinate tuples
+        """
         self.obstacles = [Polygon(obs) for obs in obstacle_list]
 
     def get_robot_geometry(self, config):
-            x, y, theta = config[0:3]
-            joint_angles = config[3:]
+        """Compute collision geometry for robot at given configuration.
+        
+        Args:
+            config: Configuration [x, y, theta, q1, q2, ...] where:
+                   - x, y: base position in world frame
+                   - theta: base orientation
+                   - q1, q2, ...: joint angles
+                   
+        Returns:
+            Dictionary with polygon geometries:
+                - base: base polygon in world frame
+                - arm_segments: list of arm segment polygons
+                - gripper: gripper polygon (None if not configured)
+                - held_object: attached object polygon (None if not attached)
+        """
+        x, y, theta = config[0:3]
+        joint_angles = config[3:]
 
-            # 1. Base Geometry
-            base_poly = Polygon(self.base_shape_def)
-            base_poly = rotate(base_poly, theta, origin=(self.base_center), use_radians=True)
-            base_poly = translate(base_poly, xoff=x-self.base_center[0], yoff=y-self.base_center[1])
+        # 1. Compute base geometry in world frame
+        base_poly = Polygon(self.base_shape_def)
+        base_poly = rotate(base_poly, theta, origin=(self.base_center), use_radians=True)
+        base_poly = translate(base_poly, xoff=x-self.base_center[0], yoff=y-self.base_center[1])
 
-            # 2. Arm Geometry Calculation
-            arm_polys = []
-            ox, oy = self.arm_base_offset
-            cx, cy = self.base_center
+        # 2. Compute arm geometry by forward kinematics
+        arm_polys = []
+        ox, oy = self.arm_base_offset
+        cx, cy = self.base_center
+        
+        # Compute arm base offset in world frame
+        dx = ox - cx
+        dy = oy - cy
+
+        cos_t = np.cos(theta)
+        sin_t = np.sin(theta)
+
+        # Rotate arm base offset by base orientation
+        rotated_dx = dx * cos_t - dy * sin_t
+        rotated_dy = dx * sin_t + dy * cos_t
+
+        # Starting position for forward kinematics
+        current_x = x + cx + rotated_dx - self.base_center[0]
+        current_y = y + cy + rotated_dy - self.base_center[1]
+        current_angle = theta
+
+        # Build arm segments using forward kinematics
+        for i, segment in enumerate(self.arm_config):
+            length, width = segment[0], segment[1]
+            q = joint_angles[i]
+            current_angle += q
             
-            dx = ox - cx
-            dy = oy - cy
-
-            cos_t = np.cos(theta)
-            sin_t = np.sin(theta)
-
-            rotated_dx = dx * cos_t - dy * sin_t
-            rotated_dy = dx * sin_t + dy * cos_t
-
-            current_x = x + cx + rotated_dx - self.base_center[0]
-            current_y = y + cy + rotated_dy - self.base_center[1]
-            current_angle = theta
-
-            for i, segment in enumerate(self.arm_config):
-                length, width = segment[0], segment[1]
-                q = joint_angles[i]
-                current_angle += q
-                
-                end_x = current_x + length * np.cos(current_angle)
-                end_y = current_y + length * np.sin(current_angle)
-                
-                line = LineString([(current_x, current_y), (end_x, end_y)])
-                segment_poly = line.buffer(width / 2.0)
-                arm_polys.append(segment_poly)
-                current_x, current_y = end_x, end_y
-                
-            # ---------------------------------------------------------
-            # ### NEU: Gripper Calculation ###
-            # ---------------------------------------------------------
-            gripper_poly = None
+            # Compute segment end point
+            end_x = current_x + length * np.cos(current_angle)
+            end_y = current_y + length * np.sin(current_angle)
             
-            # Variable für den Anfass-Punkt des Objekts (TCP)
-            # Standardmäßig ist es das Ende des Arms
-            tcp_x = current_x
-            tcp_y = current_y
+            # Create cylinder representation of arm segment
+            line = LineString([(current_x, current_y), (end_x, end_y)])
+            segment_poly = line.buffer(width / 2.0)
+            arm_polys.append(segment_poly)
+            current_x, current_y = end_x, end_y
+                
+        # ---------------------------------------------------------
+        # Gripper Calculation
+        # ---------------------------------------------------------
+        gripper_poly = None
+        
+        # Tool Center Point (TCP): where object contact occurs
+        # Defaults to end of last arm segment
+        tcp_x = current_x
+        tcp_y = current_y
+        
+        if self.gripper_config is not None:
+            # 1. Create gripper polygon (defined around origin)
+            gripper_poly = Polygon(self.gripper_config)
             
-            if self.gripper_config is not None:
-                # 1. Gripper Polygon erstellen (definiert um 0,0)
-                gripper_poly = Polygon(self.gripper_config)
-                
-                # 2. Rotieren (der Gripper dreht sich mit dem letzten Armsegment mit)
-                gripper_poly = rotate(gripper_poly, current_angle, origin=(0,0), use_radians=True)
-                
-                # 3. Verschieben an das Ende des Arms
-                gripper_poly = translate(gripper_poly, xoff=current_x, yoff=current_y)
-                
-                # 4. TCP BERECHNEN (Hier passiert die Magie!)
-                # Wir schieben den Punkt, an dem das Objekt hängen soll, 
-                # um gripper_length in Richtung des aktuellen Winkels weiter.
-                if self.gripper_length > 0:
-                    tcp_x = current_x + self.gripper_length * np.cos(current_angle)
-                    tcp_y = current_y + self.gripper_length * np.sin(current_angle)
+            # 2. Rotate gripper with last arm segment
+            gripper_poly = rotate(gripper_poly, current_angle, origin=(0,0), use_radians=True)
+            
+            # 3. Translate to arm end position
+            gripper_poly = translate(gripper_poly, xoff=current_x, yoff=current_y)
+            
+            # 4. Compute TCP (Tool Center Point)
+            # Extend TCP along current end-effector direction by gripper_length
+            if self.gripper_length > 0:
+                tcp_x = current_x + self.gripper_length * np.cos(current_angle)
+                tcp_y = current_y + self.gripper_length * np.sin(current_angle)
 
-            # ---------------------------------------------------------
-            # ### Held Object Calculation ###
-            # ---------------------------------------------------------
-            held_obj_poly = None
-            if self.attached_object_shape is not None:
-                obj = self.attached_object_shape
-                
-                # Objekt rotieren (es dreht sich mit dem Gripper)
-                obj = rotate(obj, current_angle, origin=(0,0), use_radians=True)
-                
-                # WICHTIG: Jetzt verschieben wir es an den TCP (Gripper-Spitze), 
-                # nicht mehr an current_x (Arm-Ende)
-                obj = translate(obj, xoff=tcp_x, yoff=tcp_y)
-                
-                held_obj_poly = obj
+        # ---------------------------------------------------------
+        # Held Object Calculation
+        # ---------------------------------------------------------
+        held_obj_poly = None
+        if self.attached_object_shape is not None:
+            obj = self.attached_object_shape
+            
+            # Rotate object with gripper/end-effector orientation
+            obj = rotate(obj, current_angle, origin=(0,0), use_radians=True)
+            
+            # Translate object to TCP (gripper tip), not arm end
+            # This positions the object at the actual grasp point
+            obj = translate(obj, xoff=tcp_x, yoff=tcp_y)
+            
+            held_obj_poly = obj
 
-            return {
-                "base": base_poly, 
-                "arm_segments": arm_polys, 
-                "gripper": gripper_poly, 
-                "held_object": held_obj_poly
-            }
+        return {
+            "base": base_poly, 
+            "arm_segments": arm_polys, 
+            "gripper": gripper_poly, 
+            "held_object": held_obj_poly
+        }
+        
+
         
     def drawObstacles(self, ax):
+        """Visualize static obstacles on the given matplotlib axes.
+        
+        Args:
+            ax: Matplotlib axes object for drawing
+        """
         for obs in self.obstacles:
             x, y = obs.exterior.xy
             ax.fill(x, y, fc='gray', alpha=0.5, ec='black')
 
     def draw(self, config, ax=None):
+        """Visualize robot and obstacles at given configuration.
+        
+        Args:
+            config: Robot configuration [x, y, theta, q1, q2, ...]
+            ax: Matplotlib axes object (creates new figure if None)
+        """
         if ax is None: fig, ax = plt.subplots()
-        self.drawObstacles(ax) # Code Reuse
+        self.drawObstacles(ax)  # Reuse obstacle visualization
         self.drawRobot(config, ax)
         ax.set_aspect('equal')
 
@@ -281,24 +327,24 @@ class CollisionChecker:
             if self.object_shape is not None:
                 self.attach_object(self.object_shape)
             else:
-                print("        [Warnung] Aktion PICK angefordert, aber kein ObjektShape oder keine Fähigkeit gefunden.")
+                print("        [Warning] PICK action requested, but no object shape defined or unavailable.")
         elif action == "PLACE":
-            # print(f"        [Action] PLACE executed. Robot is empty.")
             self.detach_object()
         elif action == 'MOVE':
             pass
         else:
-            print(f"        [Action] Action {action} not know!!!")
+            print(f"        [Action] Action '{action}' is not recognized.")
 
-        # print(config)
         geo = self.get_robot_geometry(config)
         
-        # 1. Basis
+        # 1. Draw base
         bx, by = geo['base'].exterior.xy
         ax.fill(bx, by, fc=color, alpha=alpha, ec='black', linewidth=1)
         
-        # 2. Arm
+        # 2. Draw arm segments
+        i=1
         for seg in geo['arm_segments']:
+            i+=1
             sx, sy = seg.exterior.xy
             ax.fill(sx, sy, fc='orange', alpha=alpha, ec='black', linewidth=1)
 
@@ -306,8 +352,8 @@ class CollisionChecker:
             gx, gy = geo['gripper'].exterior.xy
             ax.fill(gx, gy, fc='#333333', alpha=0.9, ec='black', linewidth=1, label="Gripper")
 
-        # ### NEU: Objekt zeichnen ###
+        # Draw held object if attached
         if geo['held_object'] is not None:
             ox, oy = geo['held_object'].exterior.xy
-            # Wir zeichnen das Objekt in Grün (oder einer anderen Farbe), damit es auffällt
+            # Draw object in green for visibility
             ax.fill(ox, oy, fc='#00FF00', alpha=0.9, ec='black', linewidth=1, label="Held Object")

@@ -35,11 +35,11 @@ Thumbs.db
 # --- Project Specifics / Output ---
 # Ignore large video files or generated animations if you don't want them in the repo
 # (You might want to keep gifs if they are small enough for the README)
-output/
-*.mp4
-*.avi
-*.mov
-*.png
+# output/
+# *.mp4
+# *.avi
+# *.mov
+# *.png
 
 # Temporary data or testing logs
 tmp/

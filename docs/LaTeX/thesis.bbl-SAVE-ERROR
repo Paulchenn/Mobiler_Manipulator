@@ -1,0 +1,108 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{none/global//global/global/global}
+    \entry{siciliano2016}{book}{}{}
+      \name{author}{2}{}{%
+        {{hash=38f7a70abf2d86e432d63826f560ab93}{%
+           family={Siciliano},
+           familyi={S\bibinitperiod},
+           given={Bruno},
+           giveni={B\bibinitperiod}}}%
+        {{hash=a1ed48939870abd896792330bc735967}{%
+           family={Khatib},
+           familyi={K\bibinitperiod},
+           given={Oussama},
+           giveni={O\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Springer}%
+      }
+      \strng{namehash}{0bdecfa7d3574a8d04c99af970a7506e}
+      \strng{fullhash}{0bdecfa7d3574a8d04c99af970a7506e}
+      \strng{fullhashraw}{0bdecfa7d3574a8d04c99af970a7506e}
+      \strng{bibnamehash}{0bdecfa7d3574a8d04c99af970a7506e}
+      \strng{authorbibnamehash}{0bdecfa7d3574a8d04c99af970a7506e}
+      \strng{authornamehash}{0bdecfa7d3574a8d04c99af970a7506e}
+      \strng{authorfullhash}{0bdecfa7d3574a8d04c99af970a7506e}
+      \strng{authorfullhashraw}{0bdecfa7d3574a8d04c99af970a7506e}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Springer handbook of robotics}
+      \field{year}{2016}
+    \endentry
+    \entry{lavalle2006}{book}{}{}
+      \name{author}{1}{}{%
+        {{hash=10b09a560dbab6229987301f9a193d77}{%
+           family={LaValle},
+           familyi={L\bibinitperiod},
+           given={Steven\bibnamedelima M},
+           giveni={S\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {Cambridge university press}%
+      }
+      \strng{namehash}{10b09a560dbab6229987301f9a193d77}
+      \strng{fullhash}{10b09a560dbab6229987301f9a193d77}
+      \strng{fullhashraw}{10b09a560dbab6229987301f9a193d77}
+      \strng{bibnamehash}{10b09a560dbab6229987301f9a193d77}
+      \strng{authorbibnamehash}{10b09a560dbab6229987301f9a193d77}
+      \strng{authornamehash}{10b09a560dbab6229987301f9a193d77}
+      \strng{authorfullhash}{10b09a560dbab6229987301f9a193d77}
+      \strng{authorfullhashraw}{10b09a560dbab6229987301f9a193d77}
+      \field{sortinit}{2}
+      \field{sortinithash}{8b555b3791beccb63322c22f3320aa9a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Planning algorithms}
+      \field{year}{2006}
+    \endentry
+    \entry{choset2005}{book}{}{}
+      \name{author}{1}{}{%
+        {{hash=6e25b3f5005e765132e31ba96c702baa}{%
+           family={Choset},
+           familyi={C\bibinitperiod},
+           given={Howie\bibnamedelima M},
+           giveni={H\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+      }
+      \list{publisher}{1}{%
+        {MIT press}%
+      }
+      \strng{namehash}{6e25b3f5005e765132e31ba96c702baa}
+      \strng{fullhash}{6e25b3f5005e765132e31ba96c702baa}
+      \strng{fullhashraw}{6e25b3f5005e765132e31ba96c702baa}
+      \strng{bibnamehash}{6e25b3f5005e765132e31ba96c702baa}
+      \strng{authorbibnamehash}{6e25b3f5005e765132e31ba96c702baa}
+      \strng{authornamehash}{6e25b3f5005e765132e31ba96c702baa}
+      \strng{authorfullhash}{6e25b3f5005e765132e31ba96c702baa}
+      \strng{authorfullhashraw}{6e25b3f5005e765132e31ba96c702baa}
+      \field{sortinit}{3}
+      \field{sortinithash}{ad6fe7482ffbd7b9f99c9e8b5dccd3d7}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{Principles of robot motion: theory, algorithms, and implementation}
+      \field{year}{2005}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

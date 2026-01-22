@@ -7,30 +7,27 @@ In diesem Kapitel wird die Anwendung der implementierten Planungsverfahren auf e
 
 
 \section{Problemzerlegung und Sequenzierung}
-Da die verwendeten Sampling-basierten Planer (\ac{LazyPRM} und \ac{VisibilityPRM}) primär für Punkt-zu-Punkt-Verbindungen ausgelegt sind, wird die Gesamtaufgabe in eine Sequenz von Teilproblemen zerlegt. Die Ziele der Teilprobleme werden weiterhin durch einen 5-dimensionalen Konfigurationsvektor $q$ (Gl.~\ref{eq:Konfigurationsvektor}) definiert. Dieser wird erweitert mittels der zu absolvierenden Aufgabe 
-\begin{listNorm}
-    \item \enquote{Pick},
-    \item \enquote{Place} oder
-    \item \enquote{Move} (nichts ausführen)
-\end{listNorm}
-sowie ggf. eine \textit{Standoff-Konfiguration} $q_{standoff}$. Diese gliedert sich in einen Abstand in x- und einen in y-Richtung, vor der Zielposition (siehe Abschnitt \ref{subsec:standoff}):
+Da die verwendeten Sampling-basierten Planer (\ac{LazyPRM} und \ac{VisibilityPRM}) primär für Punkt-zu-Punkt-Verbindungen ausgelegt sind, wird die Gesamtaufgabe in eine Sequenz von Teilproblemen zerlegt. Die Ziele der Teilprobleme werden weiterhin durch einen 5-dimensionalen Konfigurationsvektor $q$ (Gl.~\ref{eq:Konfigurationsvektor}) definiert. Dieser wird erweitert mittels der am Zielpunkt zu absolvierenden Aufgabe $A_\text{n}$ sowie ggf. einer \textit{Standoff-Konfiguration} $q_\text{standoff}$.
+Die Einzelziele der Teilprobleme werden in der Matrix $Q$ zusammengefasst:
+\begin{equation}
+    Q = 
+    \begin{bmatrix}
+        q_\text{1} & A_\text{1} & q_\text{standoff,1} \\
+        q_\text{2} & A_\text{2} & q_\text{standoff,2} \\
+        \vdots & \vdots & \vdots \\
+        q_\text{n} & A_\text{n} & q_\text{standoff,n}
+    \end{bmatrix}
+\end{equation}
+Hierbei bezeichnet $A_\text{n} \in \{\text{\enquote{Pick}, \enquote{Place}, \enquote{Move}}\}$ den Aktionsbefehl am Zielpunkt $q_\text{n}$, wobei \enquote{Move} für eine reine Anfahrtsbewegung ohne Manipulation steht. Der Term $q_\text{standoff,n}$ definiert die entsprechende Standoff-Position vor dem Zielpunkt.
+
+Letzterer Term gliedert sich in einen Abstand in $x$- und einen in $y$-Richtung, vor der Zielposition (siehe Abschnitt~\ref{subsec:standoff}):
 \begin{equation}
     q_{standoff} = 
     \begin{bmatrix}
         dx_{standoff} & dy_{standoff}
     \end{bmatrix}
     \label{eq:standoff}
-\end{equation}. Alle Einzelziele der Teilprobleme werden in einer Matrix zusammengefasst:
-\begin{equation}
-    Q = 
-    \begin{bmatrix}
-        q_1 & \text{\enquote{Pick}} & q_{standoff} \\
-        q_2 & \text{\enquote{Move}} & \\
-        q_3 & \text{\enquote{Place}} & q_{standoff} \\
-        \vdots & \vdots & \vdots \\
-        q_n & \text{Aufgabe}_n & q_{standoff, n}
-    \end{bmatrix}
-\end{equation}
+\end{equation}.
 
 Die Koordinaten des Abstands der Standoff-Position bezieht sich nur auf die $x$ und $y$ Koordinaten des Roboters. Die Ausrichtung $\theta_{base}$ sowie die Stellung der Armgelenke $\theta_1$ und $\theta_2$ ist an der Standoff-Position identisch zur eigentlich in $q_n$ definierten Zielposition. Realisiert wird dies durch die Klasse \texttt{MultiGoalPlannerRunner} (Datei \texttt{IPMultiGoalPlannerRunner.py}).
 
@@ -56,22 +53,22 @@ Der Ablauf gliedert sich in folgende Phasen:
 
 \subsection{Berechnung der Standoff-Position}
 \label{subsec:standoff}
-Ein direktes Anfahren der Greifposition mittels \ac{PRM} ist oft nicht zielführend, da der Zufalls-Sampler in unmittelbarer Nähe von Hindernissen (dem zu greifenden Objekt) ineffizient arbeitet. Stattdessen wird eine \textit{Standoff-Konfiguration} $q_{standoff}$ berechnet, die einen definierten Abstand zum Ziel hat.
+Ein direktes Anfahren der Greifposition mittels \ac{PRM} ist oft nicht zielführend, da der Zufalls-Sampler in unmittelbarer Nähe von Hindernissen (dem zu greifenden Objekt) ineffizient arbeitet. Stattdessen wird eine \textit{Standoff-Konfiguration} $q_\text{standoff}$ berechnet, die einen definierten Abstand zum Ziel hat.
 
-Gegeben sei die Zielkonfiguration $q_{\text{target}} = \left[\begin{matrix} x_t & y_t & \theta_t & \theta_{1t}& \theta_{2t}\end{matrix}\right]$ und ein lokaler Offset-Vektor $q_{\text{standoff,local}} = \left[\begin{matrix} dx_{\text{standoff}} & dy_{\text{standoff}}\end{matrix}\right]$, der den gewünschten Abstand in Relation zur Greifer-Orientierung beschreibt. Die Berechnung der Weltkoordinaten für den Standoff-Punkt erfolgt durch Rücktransformation:
+Gegeben sei die Zielkonfiguration $q_{\text{target}} = \left[\begin{matrix} x_\text{t} & y_\text{t} & \theta_\text{t} & \theta_\text{1t}& \theta_\text{2t}\end{matrix}\right]$ und ein lokaler Offset-Vektor $q_{\text{standoff,local}} = \left[\begin{matrix} dx_{\text{standoff}} & dy_{\text{standoff}}\end{matrix}\right]$, der den gewünschten Abstand in Relation zur Greifer-Orientierung beschreibt. Die Berechnung der Weltkoordinaten für den Standoff-Punkt erfolgt durch Rücktransformation:
 
 \begin{equation}
-    \begin{bmatrix} x_{standoff} \\ y_{standoff} \end{bmatrix} = 
-    \begin{bmatrix} x_{t} \\ y_{t} \end{bmatrix} - 
-    R(\theta_t) \cdot \begin{bmatrix} dx_{\text{standoff}} \\ dy_{\text{standoff}} \end{bmatrix}
+    \begin{bmatrix} x_\text{standoff} \\ y_\text{standoff} \end{bmatrix} = 
+    \begin{bmatrix} x_\text{t} \\ y_\text{t} \end{bmatrix} - 
+    R(\theta_\text{t}) \cdot \begin{bmatrix} dx_{\text{standoff}} \\ dy_{\text{standoff}} \end{bmatrix}
 \end{equation}
 
-wobei $R(\theta_t)$ die Rotationsmatrix um den Winkel $\theta_t$ darstellt:
+wobei $R(\theta_\text{t})$ die Rotationsmatrix um den Winkel $\theta_\text{t}$ darstellt:
 \begin{equation}
-    R(\theta_t) = \begin{bmatrix} \cos\theta_t & -\sin\theta_t \\ \sin\theta_t & \cos\theta_t \end{bmatrix}
+    R(\theta_\text{t}) = \begin{bmatrix} \cos\theta_\text{t} & -\sin\theta_\text{t} \\ \sin\theta_\text{t} & \cos\theta_\text{t} \end{bmatrix}
 \end{equation}
 
-In der Implementierung wird standardmäßig ein Offset von $0.6$ Einheiten in x-Richtung verwendet ($q_{\text{standoff,default}} = \left[\begin{matrix} 0.6 & 0.0\end{matrix}\right]$). Falls in der Zieldefinition jedoch ein spezifischer Offset hinterlegt ist (z.\,B. für seitliches Greifen), wird dieser priorisiert verwendet.
+In der Implementierung wird standardmäßig ein Offset von $0.6$\,\ac{LE} in $x$-Richtung verwendet ($q_{\text{standoff,default}} = \left[\begin{matrix} 0,6 & 0,0\end{matrix}\right]$). Falls in der Zieldefinition jedoch ein spezifischer Offset hinterlegt ist (z.\,B. für seitliches Greifen), wird dieser priorisiert verwendet.
 
 \newpage
 
@@ -79,12 +76,14 @@ In der Implementierung wird standardmäßig ein Offset von $0.6$ Einheiten in x-
 
 \subsection{Handhabung des Objekts (Attach/Detach)}
 Ein kritischer Aspekt der Simulation ist der Zustandswechsel des manipulierten Objekts. 
-\begin{itemize}
-    \item \textbf{Vor dem Greifen:} Das Objekt ist ein statisches Hindernis in der Liste \texttt{obstacles} des CollisionCheckers.
+\begin{listNorm}
+    \item \textbf{Vor dem Greifen:} Das Objekt ist ein statisches Hindernis in der Liste \texttt{obstacles} des \textit{CollisionCheckers}.
     \item \textbf{Nach dem Greifen (\texttt{attach\_object}):} 
-    Sobald der Greifzustand erreicht ist, wird das Objekt aus der Hindernisliste entfernt und stattdessen als Polygon an das letzte Segment des Roboterarms angehängt. Für die Kollisionsprüfung bedeutet dies, dass das Objekt nun Teil der Roboterkonfiguration ist und sich mitbewegt (siehe Abschnitt \ref{sec:self_collision}, Prüfung \enquote{Gegriffenes Objekt}).
+    Sobald der Greifzustand erreicht ist, wird das Objekt aus der Hindernisliste entfernt und stattdessen als Polygon an das letzte Segment des Roboterarms angehängt. Für die Kollisionsprüfung bedeutet dies, dass das Objekt nun Teil der Roboterkonfiguration ist und sich mitbewegt (siehe Abschnitt~\ref{sec:self_collision}, Prüfung \enquote{Gegriffenes Objekt}).
     \item \textbf{Beim Ablegen (\texttt{detach\_object}):} Das Objekt wird vom Roboter entfernt und an der aktuellen Position als neues statisches Hindernis in die Welt eingefügt.
-\end{itemize}
+\end{listNorm}
+
+Da sich durch die Interaktion mit dem Objekt sowohl die Geometrie des Roboters (beim Greifen oder Ablegen) als auch die Liste der statischen Hindernisse verändert, wird der Planungsgraph für jedes Teilproblem vollständig neu aufgebaut. Für die Visualisierung werden die resultierenden Graphen und Pfade anschließend aneinandergehängt.
 
 
 
@@ -92,7 +91,7 @@ Ein kritischer Aspekt der Simulation ist der Zustandswechsel des manipulierten O
 \section{Simulation und Ergebnisse}
 \label{sec:pickplace_results}
 
-Die Validierung des implementierten \texttt{MultiGoalPlannerRunner} erfolgt exemplarisch in der Umgebung \textit{Empty World}. Diese Umgebung wurde gewählt, da sie eine klare visuelle Unterscheidung zwischen den globalen Pfadsegmenten (\ac{PRM}-basiert) und den lokalen Manipulationspfaden (linear interpoliert) ermöglicht, ohne dass Sichtlinien durch Hindernisse verdeckt werden. 
+Die Validierung des implementierten \texttt{MultiGoalPlannerRunner} erfolgt exemplarisch in der Umgebung \textit{Empty World}. Diese Umgebung wird gewählt, da sie eine klare visuelle Unterscheidung zwischen den globalen Pfadsegmenten (\ac{PRM}-basiert) und den lokalen Manipulationspfaden (linear interpoliert) ermöglicht, ohne dass Sichtlinien durch Hindernisse verdeckt werden. 
 
 
 
@@ -121,10 +120,10 @@ Abbildung~\ref{fig:pick_place_comparison} stellt die generierten Roadmaps und Tr
 \end{figure}
 
 Es zeigen sich charakteristische Unterschiede:
-\begin{itemize}
+\begin{listNorm}
     \item \textbf{Struktur:} Während der \ac{VisibilityPRM} (Abb. \ref{fig:pp_empty_vis}) klare, direkte Verbindungen zwischen den Aktionspunkten schafft, ist die Lösung des \ac{LazyPRM} (Abb. \ref{fig:pp_empty_lazy}) durch eine hohe Dichte an redundanten Knoten und Kanten geprägt.
     \item \textbf{Local Approach:} Bei beiden Verfahren ist der Übergang vom globalen Planer zur lokalen Interpolation deutlich erkennbar. Die \enquote{Stacheln} an den Greif- und Ablagepositionen repräsentieren die linearen Anfahrtswege (Approach/Retreat), die ohne den probabilistischen Planer berechnet werden.
-\end{itemize}
+\end{listNorm}
 
 \newpage
 
@@ -143,7 +142,7 @@ Unter realistischen Bedingungen (aktiver Self-Check) zeigt sich, dass die Segmen
 Abbildung \ref{fig:pp_stats_check} zeigt exemplarisch die Ergebnisse in der \textit{Empty World}, während die detaillierten Ergebnisse der komplexen Szenarien im Anhang~\ref{sec:pp_erg_multiRun_SelfCheck} (Abb.~\ref{fig:pp_empty_world_bench_multi} bis \ref{fig:pp_shelf_reach_bench_multi}) aufgeführt sind.
 
 % PLATZHALTER BILD - Empty World
-\begin{figure}[H]
+\begin{figure}[hbpt]
     \centering
     \includegraphics[width=1.0\textwidth]{Figures/png/Empty_World_benchmark_pickPlace_multiRun_SelfChek.png} 
     \caption{Statistische Auswertung der Pick-and-Place Aufgabe in \textit{Empty World} (mit Self-Check). Die Erfolgsrate misst das erfolgreiche Absolvieren der \textit{gesamten} Sequenz.}
@@ -156,14 +155,18 @@ Eine szenarienübergreifende Analyse liefert folgende Erkenntnisse:
     \item \textbf{Basis-Performance:} In der hindernisfreien Umgebung (\textit{Empty World}) erreichen beide Planer eine hohe Zuverlässigkeit (100\,\% Erfolg).
     
     \item \textbf{Einbruch bei LazyPRM in Clutter-Umgebungen:} 
-    Im Szenario \textit{Forest} offenbart sich eine signifikante Schwäche des \ac{LazyPRM}. Während der \ac{VisibilityPRM} hier weiterhin 100\,\% Erfolgsrate erzielt, fällt der \ac{LazyPRM} auf 10\,\% ab (siehe Anhang Abb. \ref{fig:pp_forest_bench_multi}). Die Fehleranalyse zeigt, dass das Scheitern fast ausschließlich im Segment \enquote{PICK} auftritt.\newline
-    \textit{Interpretation:} Das Greifen eines Objekts nahe an Hindernissen erfordert eine sehr spezifische Konfiguration. Da \ac{LazyPRM} den Raum zufällig sampelt und keine explizite Sichtbarkeitsstrategie nutzt, findet er in der begrenzten Zeit oft keinen gültigen Zugangspunkt zum Objekt.
+    Im Szenario \textit{Forest} offenbart sich eine signifikante Schwäche des \ac{LazyPRM}. Während der \ac{VisibilityPRM} hier weiterhin 100\,\% Erfolgsrate erzielt, fällt der \ac{LazyPRM} auf 10\,\% ab (siehe Anhang~\ref{sec:pp_erg_multiRun_SelfCheck}, Abb. \ref{fig:pp_forest_bench_multi}). Die Fehleranalyse zeigt, dass das Scheitern fast ausschließlich im Segment \enquote{PICK} auftritt.
+    % \textit{Interpretation:} Das Greifen eines Objekts nahe an Hindernissen erfordert eine sehr spezifische Konfiguration. Da \ac{LazyPRM} den Raum zufällig sampelt und keine explizite Sichtbarkeitsstrategie nutzt, findet er in der begrenzten Zeit oft keinen gültigen Zugangspunkt zum Objekt.
+
+    \newpage
     
     \item \textbf{Herausforderung Engstellen:}
-    In den Szenarien \textit{The Wall} und \textit{Narrow Passage} sinkt selbst die Erfolgsrate des \ac{VisibilityPRM} auf ca. 70\,\% (siehe Anhang Abb. \ref{fig:pp_the_wall_bench_multi} und \ref{fig:pp_narrow_passage_bench_multi}). Die Kombination aus präziser Basis-Navigation durch die Engstelle und anschließender Arm-Manipulation erhöht die Wahrscheinlichkeit, in lokale Minima zu geraten oder das Zeitlimit zu überschreiten.
+    In den Szenarien \textit{The Wall} und \textit{Narrow Passage} sinkt selbst die Erfolgsrate des \ac{VisibilityPRM} auf ca. 70\,\% (vgl. Anhang~\ref{sec:pp_erg_multiRun_SelfCheck}, Abb.~\ref{fig:pp_the_wall_bench_multi} und~\ref{fig:pp_narrow_passage_bench_multi}). Die Kombination aus präziser Basis-Navigation durch die Engstelle und anschließender Arm-Manipulation erhöht die Wahrscheinlichkeit, in lokale Minima zu geraten oder das Zeitlimit zu überschreiten.
     
     \item \textbf{Kinematische Grenzen:}
-    Das Szenario \textit{Shelf Reach} konnte von keinem der Planer gelöst werden (0\,\% Erfolg, siehe Anhang Abb. \ref{fig:pp_shelf_reach_bench_multi}). Dies verdeutlicht die physikalischen Grenzen des Robotersystems: Das Greifen hinter einem Hindernis unter Berücksichtigung der Eigenkollision erfordert eine komplexe Arm-Konfiguration, die durch reines Sampling in diesem 5D-Raum schwer zu finden ist. Eine Erhöhung der Rechenzeit oder eine Anpassung der ntry-Parameter könnte hier die probabilistische Vollständigkeit des Algorithmus besser ausnutzen.
+    Das Szenario \textit{Shelf Reach} konnte von keinem der Planer gelöst werden (0\,\% Erfolg, vgl. Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck}, Abb.~\ref{fig:pp_shelf_reach_bench_multi}). Dies verdeutlicht die physikalischen Grenzen des Robotersystems: Das Greifen hinter einem Hindernis unter Berücksichtigung der Eigenkollision erfordert eine komplexe Arm-Konfiguration, die durch reines Sampling in diesem 5D-Raum schwer zu finden ist. Eine Erhöhung der Rechenzeit oder eine Anpassung der ntry-Parameter könnte hier die probabilistische Vollständigkeit des Algorithmus besser ausnutzen.
+    
+    \item \textbf{Ursachenanalyse:} Der Unterschied liegt in der Instanziierung des zu greifenden Objekts als zusätzliches Hindernis. Im reinen Navigations-Test ist der Raum um die Zielkoordinate frei. Im Pick-Szenario blockiert das Objekt-Polygon nun diesen Bereich. Auch wenn der Standoff-Punkt (0.6\,m Abstand) selbst kollisionsfrei ist, reduziert das Objekt das Volumen der validen Konfigurationen in der Zielumgebung. Pfade, die zuvor durch den Objekt-Raum führten, sind nun invalide. Es entsteht eine lokale Engstelle (vgl. \textit{Narrow Passage}) um das Ziel, die für den probabilistischen Ansatz des \ac{LazyPRM} deutlich schwerer zu finden ist als der zuvor freie Raum. Da \ac{LazyPRM} Kanten lazy validiert und keine explizite Strategie besitzt, um Knoten exakt an Hindernisgrenzen zu platzieren, werden Verbindungspfade zum Ziel, die das Objekt-Hindernis minimal tangieren, häufig als Kollision verworfen. Der Planer findet somit den \enquote{Zugang} zum Objekt nicht.
 \end{listNorm}
 
 
@@ -174,12 +177,14 @@ Eine szenarienübergreifende Analyse liefert folgende Erkenntnisse:
 Abschließend wurden alle Szenarien erneut ohne aktive Eigenkollisionsprüfung evaluiert. Abbildung~\ref{fig:pp_stats_empty_noCheck} zeigt die Ergebnisse der Referenzumgebung. Der Vergleich mit den komplexen Szenarien im Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck} (Abb.~\ref{fig:pp_empty_world_bench_multi_noSelfCheck} bis \ref{fig:pp_shelf_reach_bench_multi_noSelfCheck}) liefert wichtige differenzierte Erkenntnisse:
 
 \begin{enumerate}
-    \item \textbf{Einfluss des Objekt-Hindernisses (LazyPRM im Forest):} 
-    Im Szenario \textit{Forest} bricht die Erfolgsrate des \ac{LazyPRM} im Pick-and-Place Test auf 10\,\% ein (vgl. Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck} Abb.~\ref{fig:pp_forest_bench_multi_noSelfCheck}). Dies ist bemerkenswert, da der Planer in isolierten Navigations-Tests denselben Standoff-Punkt zuverlässig erreicht.
-    \newline
-    \textit{Ursachenanalyse:} Der Unterschied liegt in der Instanziierung des zu greifenden Objekts als zusätzliches Hindernis. Im reinen Navigations-Test war der Raum um die Zielkoordinate frei. Im Pick-Szenario blockiert das Objekt-Polygon nun diesen Bereich. Auch wenn der Standoff-Punkt (0.6\,m Abstand) selbst kollisionsfrei ist, reduziert das Objekt das Volumen der validen Konfigurationen in der Zielumgebung. Pfade, die zuvor durch den Objekt-Raum führten, sind nun invalide. Es entsteht eine lokale Engstelle (\enquote{Narrow Passage}) um das Ziel, die für den probabilistischen Ansatz des \ac{LazyPRM} deutlich schwerer zu finden ist als der zuvor freie Raum. Da \ac{LazyPRM} Kanten lazy validiert und keine explizite Strategie besitzt, um Knoten exakt an Hindernisgrenzen zu platzieren, werden Verbindungspfade zum Ziel, die das Objekt-Hindernis minimal tangieren, häufig als Kollision verworfen. Der Planer findet somit den \enquote{Zugang} zum Objekt nicht.
+    \item \textbf{Bestätigung der Beobachtungen aus Abschnitt~\ref{sec:self_check_impact}:}
+    Im Szenario \textit{Forest} steigt die Erfolgsrate des \ac{LazyPRM} im Pick-and-Place Test ohne Eigenkollisionsprüfung auf 100\,\% an (vgl. Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck}, Abb.~\ref{fig:pp_forest_bench_multi_noSelfCheck}). Dies bestätigt die These, dass die Eigenkollision in diesem Szenario der limitierende Faktor ist. Ohne diese Einschränkung erweitert sich der gültige Konfigurationsraum erheblich, was es dem \ac{LazyPRM} ermöglicht, valide Pfade zu finden.
 
     \item \textbf{Bestätigung kinematischer Limits:} Im Szenario \textit{Shelf Reach} führt auch die Deaktivierung der Eigenkollision zu keinem Erfolg (0\,\%, siehe Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck} Abb.~\ref{fig:pp_shelf_reach_bench_multi_noSelfCheck}). Dies untermauert die These, dass die Komplexität der Regal-Umgebung den Lösungsraum so stark einschränkt, dass dieser mit Standard-Sampling-Dichten praktisch unauffindbar bleibt.
+
+    \item \textbf{Dominanz externer Constraints:} Im Gegensatz zum \textit{Forest}-Szenario zeigt die Deaktivierung der Eigenkollisionsprüfung in den Szenarien \textit{The Wall} und \textit{Narrow Passage} keine signifikante Verbesserung der Erfolgsrate für den \ac{LazyPRM} (verbleibt bei 0\,\%, vgl. Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck} Abb.~\ref{fig:pp_the_wall_bench_multi_noSelfCheck}). Auch beim \ac{VisibilityPRM} bleibt die Erfolgsrate stabil bei ca. 70\,\% (vgl. Anhang~\ref{sec:pp_erg_multiRun_noSelfCheck} Abb.~\ref{fig:pp_narrow_passage_bench_multi_noSelfCheck}).
+
+    \textit{Ursachenanalyse:} Dies bestätigt, dass in diesen Fällen nicht die interne geometrische Beschränkung des Roboters, sondern die externe Topologie der Flaschenhals ist. Die \enquote{Narrow Passage} im 5-dimensionalen Konfigurationsraum wird hier primär durch den schmalen Korridor in der Welt definiert. Da der \ac{LazyPRM} keine Strategie besitzt, um gezielt Proben in diesen kritischen, engen Regionen zu generieren, scheitert er unabhängig davon, ob Eigenkollisionen erlaubt sind oder nicht.
 
     \item \textbf{Transport-Phase:} 
     Lediglich in den wenigen erfolgreichen Läufen zeigt sich eine leichte Reduktion der Pfadkosten, da der Roboter das Objekt beim Transport \enquote{durch sich selbst} ziehen kann, um die Distanz zu verkürzen.
@@ -193,4 +198,22 @@ Abschließend wurden alle Szenarien erneut ohne aktive Eigenkollisionsprüfung e
     \label{fig:pp_stats_empty_noCheck}
 \end{figure}
 
+\newpage
+
 Zusammenfassend bestätigt die Auswertung, dass für Manipulationsaufgaben in engen Umgebungen die Wahl des Planers (\ac{VisibilityPRM} vs. \ac{LazyPRM}) und die Sampling-Strategie entscheidender sind als die reine Relaxierung von Kollisionsbedingungen.
+
+
+
+
+\subsection{Zusammenfassendes Fazit der Pick-and-Place-Evaluation}
+
+Die quantitative Auswertung der Manipulationsaufgabe verdeutlicht, dass die Komplexität gegenüber der reinen Navigation signifikant ansteigt, da das zu greifende Objekt zusätzliche geometrische Restriktionen im Konfigurationsraum erzeugt.
+
+\begin{listNorm}
+    \item \textbf{Robustheit vs. Effizienz:} Während der \ac{VisibilityPRM} durch seine gezielte Sampling-Strategie (Guard-Nodes) eine hohe Robustheit in engen und hindernisreichen Umgebungen beweist, bleibt der \ac{LazyPRM} aufgrund seines rein zufälligen Samplings in diesen Szenarien oft erfolglos.
+    \item \textbf{Rechenzeit und Skalierbarkeit:} Es zeigt sich eine deutliche Diskrepanz in der Recheneffizienz. Der \ac{LazyPRM} profitiert in offenen Umgebungen wie der \textit{Empty World} massiv von der verzögerten Kollisionsprüfung und ist mit ca. 1–2\,s deutlich schneller als der VisibilityPRM (ca. 20–30\,s). In komplexen Szenarien wie dem \textit{Forest} steigt der Aufwand für Visibility-Prüfungen jedoch stark an (ca. 600\,s), da die hohe Anzahl an Raycasts gegen die Umweltgeometrie den rechenintensivsten Faktor darstellt. Dieser Zeitaufwand wird jedoch durch die notwendige Robustheit in schwierigen Passagen gerechtfertigt.
+    \item \textbf{Interne vs. externe Constraints:} Die Analyse zeigt eine klare Differenzierung der Fehlerursachen: In Szenarien wie \textit{Forest} ist die Eigenkollision der limitierende Faktor, da ihre Deaktivierung die Erfolgsrate steigert. Im Gegensatz dazu wird das Scheitern in den Szenarien \textit{The Wall} und \textit{Narrow Passage} primär durch die externe Umweltgeometrie (Engstellen) bestimmt, weshalb ein Verzicht auf die Eigenkollisionsprüfung hier keinen Performance-Vorteil bringt.
+    \item \textbf{Physikalische Grenzen:} Das vollständige Scheitern im \textit{Shelf Reach}-Szenario markiert die Grenze des aktuellen Systems. Es lässt sich konstatieren, dass für solche hochgradig eingeschränkten Aufgaben entweder die Sampling-Dichte massiv erhöht werden müsste oder spezialisierte Heuristiken für den Greifraum erforderlich sind, um die theoretische probabilistische Vollständigkeit der Planer in praktischer Rechenzeit zu erreichen.
+\end{listNorm}
+
+Insgesamt bestätigt die Evaluation, dass für komplexe Manipulationsaufgaben die Wahl einer intelligenten Sampling-Strategie (Visibility-Ansatz) entscheidender für den Erfolg ist als die bloße Rechengeschwindigkeit des Planers.
