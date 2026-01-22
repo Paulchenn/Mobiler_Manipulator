@@ -1,32 +1,56 @@
 # src/planners/IPAnimator.py
 
 import datetime
+from typing import List, Dict, Tuple, Any, Optional
+
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
+from matplotlib.animation import FuncAnimation, Animation
 from IPython.display import HTML, display, clear_output
-import networkx as nx
-from shapely.geometry import Polygon
 from ipywidgets import Button, Dropdown, VBox, HBox, Output, Layout, Label, IntProgress
+
+# Note: Depending on the specific CollisionChecker implementation, 
+# you might need to import it for type hinting, e.g.:
+# from src.planners.CollisionChecker import CollisionChecker
 
 class IPAnimator:
     """
     Helper class to generate smooth animations for Robot Path Planning results.
-    Updated for Pick & Place Visualization.
+    
+    This class handles the visualization of robot trajectories, including 
+    complex Pick & Place sequences, by interpolating configurations and 
+    managing the state of held objects during the animation.
     """
 
     @staticmethod
-    def _interpolate_line(startPos, endPos, step_size=0.2):
-        """Interpolates linearly between two configurations."""
-        start = np.array(startPos)
-        end = np.array(endPos)
+    def _interpolate_line(
+        start_pos: List[float] or np.ndarray, 
+        end_pos: List[float] or np.ndarray, 
+        step_size: float = 0.2
+    ) -> List[np.ndarray]:
+        """
+        Linearly interpolates between two configuration points.
+
+        Args:
+            start_pos (list or np.array): The starting configuration.
+            end_pos (list or np.array): The target configuration.
+            step_size (float): The maximum distance between interpolated points.
+
+        Returns:
+            List[np.ndarray]: A list of intermediate configurations including the start.
+        """
+        start = np.array(start_pos)
+        end = np.array(end_pos)
         dist = np.linalg.norm(end - start)
         
+        # Handle identical points
         if dist < 1e-6:
             return [start]
         
+        # Calculate number of steps required
         n_steps = int(dist / step_size)
-        if n_steps < 1: n_steps = 1
+        if n_steps < 1: 
+            n_steps = 1
         
         steps = []
         for i in range(n_steps):
@@ -36,41 +60,44 @@ class IPAnimator:
         
         return steps
 
-    # @staticmethod
-    # def _get_interpolated_path(config_path, step_size=0.2):
-    #     """Creates a smooth path from a list of waypoints."""
-    #     smooth_path = []
-    #     for i in range(len(config_path) - 1):
-    #         segment = IPAnimator._interpolate_line(config_path[i], config_path[i+1], step_size)
-    #         smooth_path.extend(segment)
-        
-    #     smooth_path.append(np.array(config_path[-1]))
-    #     return smooth_path
-
     @staticmethod
-    def _get_trajectory_with_state(config_path, actions, cc, step_size=0.2):
+    def _get_trajectory_with_state(
+        config_path: List[Any], 
+        actions: Dict[int, Tuple[str, Any]], 
+        cc: Any, 
+        step_size: float = 0.2
+    ) -> List[Tuple[np.ndarray, Any, Any]]:
         """
-        Creates a smooth path containing configuration AND gripper state for every frame.
+        Generates a smooth trajectory containing the configuration and object state for every frame.
         
+        This method simulates the robot's movement and gripper state (Pick/Place) 
+        step-by-step to ensure the animation correctly renders when an object is 
+        picked up or placed down.
+
         Args:
-            config_path: List of configurations (nodes).
-            actions: Dictionary { index: ("ACTION", shape) }
-            
+            config_path (list): List of configurations (or nodes) from the planner.
+            actions (dict): Dictionary mapping node indices to actions. 
+                            Format: { index: ("ACTION_TYPE", object_shape) }.
+            cc (CollisionChecker): Instance of the collision checker to calculate geometry.
+            step_size (float): Interpolation step size.
+
         Returns:
-            trajectory: List of tuples [(config, held_object_shape), ...]
+            list: A list of tuples, where each tuple represents a frame:
+                  (robot_configuration, held_object_shape, world_object_shape).
         """
         trajectory = []
         
-        # --- 1. Initiale Objekt-Position bestimmen ---
-        # Wir schauen, wo der ERSTE Pick stattfindet. Dort liegt das Objekt am Anfang.
+        # --- 1. Determine Initial Object Position ---
+        # Logic: If there is a PICK action later, the object must exist in the world 
+        # at the start. We simulate the grab briefly to calculate its world position.
         current_world_obj_poly = None
-        current_held_object = None # Am Start trägt der Roboter nichts
+        current_held_object = None  # Robot carries nothing at start
 
         first_pick_index = -1
         object_shape_def = None
 
         if actions:
-            # Suche nach dem ersten "PICK"
+            # Find the first "PICK" action
             for idx, (act, shape) in actions.items():
                 if act == "PICK":
                     first_pick_index = idx
@@ -78,139 +105,157 @@ class IPAnimator:
                     break
 
         if first_pick_index != -1 and first_pick_index < len(config_path):
-            # Wir simulieren kurz, dass das Objekt dort gegriffen ist, um die Position zu bekommen
+            # Temporarily simulate object being grasped to retrieve its start coordinates
             pick_config = config_path[first_pick_index]
             
-            # Helper: Objekt kurz anhängen, Geometrie berechnen, Polygon kopieren, abhängen
             cc.attach_object(object_shape_def)
             geo = cc.get_robot_geometry(pick_config)
-            if geo['held_object'] is not None:
-                current_world_obj_poly = geo['held_object'] # Das ist jetzt das Polygon in Weltkoordinaten
+            
+            if geo.get('held_object') is not None:
+                current_world_obj_poly = geo['held_object']  # Polygon in world coordinates
+            
             cc.detach_object()
         
-        # --- 2. Pfad interpolieren ---
+        # --- 2. Interpolate Path and Track State ---
         for i in range(len(config_path) - 1):
             start_conf = config_path[i]
             end_conf = config_path[i+1]
             
-            # Interpolate Segment
+            # Interpolate movement between two path nodes
             segment_configs = IPAnimator._interpolate_line(start_conf, end_conf, step_size)
             
-            # Append frames with CURRENT state
+            # Append interpolated frames with the CURRENT state
             for conf in segment_configs:
-                # Frame speichern: (RoboterConfig, WasHängtAmArm, WasLiegtInDerWelt)
                 trajectory.append((conf, current_held_object, current_world_obj_poly))
             
-            # --- STATE TRANSITION CHECK ---
-            # Check if an action happens at the target node (i+1) of this movement
+            # --- 3. Handle State Transitions (Pick/Place) ---
             target_node_index = i + 1
             if actions and target_node_index in actions:
                 action_type, obj_shape = actions[target_node_index]
                 target_config = config_path[target_node_index]
                 
                 if action_type == "PICK":
-                    # Roboter nimmt Objekt -> Welt leer, Arm voll
+                    # Transition: Object moves from World -> Robot Hand
                     current_held_object = obj_shape
                     current_world_obj_poly = None
 
                 elif action_type == "PLACE":
-                    # Roboter legt ab -> Arm leer, Welt voll (an der aktuellen Position)
-                    
-                    # Berechne, wo das Objekt jetzt liegt
-                    # Wir müssen es kurz attachen, um die Kinematik zu nutzen
-                    cc.attach_object(current_held_object) # Das Objekt, das wir gerade noch hatten
+                    # Transition: Object moves from Robot Hand -> World
+                    # We must attach briefly to calculate where the object lands
+                    cc.attach_object(current_held_object)
                     geo = cc.get_robot_geometry(target_config)
                     current_world_obj_poly = geo['held_object']
-                    cc.detach_object() # Cleanup für den CC, state wird über Variable gesteuert
+                    cc.detach_object()
                     
                     current_held_object = None
 
-        # Letzten Punkt anfügen
+        # Append the final configuration frame
         trajectory.append((config_path[-1], current_held_object, current_world_obj_poly))
         
         return trajectory
 
     @staticmethod
-    def animate_solution(plannerFactory, result, limits=[[-6, 6],[-6, 6]], interval=50, step_size=0.25, nodeSize=20, progress_widget=None):
+    def animate_solution(
+        planner_factory: Dict, 
+        result: Any, 
+        limits: List[List[float]] = [[-6, 6], [-6, 6]], 
+        interval: int = 50, 
+        step_size: float = 0.25, 
+        node_size: int = 20, 
+        progress_widget: Optional[IntProgress] = None
+    ) -> Optional[FuncAnimation]:
         """
-        Generates the HTML5 Animation with Split-Screen (Task Space & Graph).
-        
-        Args:
-            result_obj: ResultCollection object containing planner, solution, benchmark.
-            limits: Tuple (min, max) for the plot axis limits.
-            interval: Animation speed in ms.
-            step_size: Interpolation step size (lower = smoother but more frames).
-        
-        Returns:
-            HTML object containing the JS animation.
-        """        
+        Generates an HTML5 Animation with Split-Screen view (Task Space & Graph Search).
 
+        Args:
+            planner_factory (dict): Dictionary containing planner factory methods.
+            result (ResultCollection): Object containing planner, solution, and benchmark data.
+            limits (list): List of [min, max] for X and Y axes.
+            interval (int): Delay between frames in milliseconds.
+            step_size (float): Interpolation resolution (lower = smoother but slower).
+            node_size (int): Visual size of nodes in the graph plot.
+            progress_widget (IntProgress, optional): Widget to display rendering progress in UI.
+
+        Returns:
+            FuncAnimation: The matplotlib animation object, or None if no path exists.
+        """        
         plt.rcParams['animation.embed_limit'] = 200
 
-        # A. Path Validation & Extraction
+        # --- A. Data Extraction & Validation ---
         planner = result.planner
         solution = result.solution
         actions = result.actions
-        graph = planner.graph.copy()
+        graph = getattr(planner, 'graph', None)
 
         if solution is None or len(solution) == 0:
-            print(f"[IPAnimator] No path for {result.plannerFactoryName}")
+            print(f"[IPAnimator] No path found for {result.plannerFactoryName}. Skipping animation.")
             return None
         
+        if graph is None:
+             # Fallback if the planner doesn't expose a graph (e.g. some RRT variants might differ)
+             # Assuming graph copy is necessary for visualization
+             graph = planner.graph.copy()
+        else:
+             graph = graph.copy()
+
         cc = result.benchmark.collisionChecker
         
-        # Convert Node IDs to Configs if necessary
+        # Resolve Node IDs to Configuration Coordinates if necessary
         config_path = []
-        if isinstance(solution[0], (int, np.integer, str)):
-            # Assuming Node IDs
+        if len(solution) > 0 and isinstance(solution[0], (int, np.integer, str)):
             for node_id in solution:
-                try:
+                if node_id in graph.nodes:
                     config_path.append(graph.nodes[node_id]['pos'])
-                except KeyError:
-                    # Fallback if pos is missing
-                    pass
         else:
             config_path = solution
 
         if not config_path:
             return None
 
-        # B. Interpolation
-        # This creates a list of (config, shape) tuples
-        full_trajectory = IPAnimator._get_trajectory_with_state(config_path, actions, cc, step_size=step_size)
+        # --- B. Trajectory Generation ---
+        full_trajectory = IPAnimator._get_trajectory_with_state(
+            config_path, actions, cc, step_size=step_size
+        )
         
-        print(f"[IPAnimator] Generating Animation for '{result.plannerFactoryName} - {result.benchmark.name}' ({len(full_trajectory)} frames)...")
+        print(f"[IPAnimator] Generating Animation for '{result.plannerFactoryName} - {result.benchmark.name}' "
+              f"({len(full_trajectory)} frames)...")
 
-        # --- NEU: Progress Bar initialisieren ---
+        # Initialize UI Progress Bar
         if progress_widget:
             progress_widget.value = 0
             progress_widget.max = len(full_trajectory)
             progress_widget.description = f"0/{len(full_trajectory)}"
             progress_widget.bar_style = 'info'
-        # ----------------------------------------
 
-
-        # C. Setup Figure
+        # --- C. Figure Setup ---
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
-        plt.close(fig) # Prevent static output
+        plt.close(fig)  # Prevents double display in notebooks
 
-        # Titles
+        # Set Titles
         ax1.set_title(f"Task Space: {result.benchmark.name}")
-        ax2.set_title(f"Graph Projection (X-Y)")
+        ax2.set_title("Graph Projection (X-Y)")
 
-        # Limits
-        limits_x = limits[0]
-        limits_y = limits[1]
+        # Set Axis Limits
         for ax in [ax1, ax2]:
-            ax.set_xlim(limits_x)
-            ax.set_ylim(limits_y)
+            ax.set_xlim(limits[0])
+            ax.set_ylim(limits[1])
             ax.set_aspect('equal')
             ax.grid(True, alpha=0.3)
 
-        # --- Plot 2: Graph Projection (Background) ---
-        plannerFactory[result.plannerFactoryName][2](result.planner, result.solution, actions=actions, ax=ax, nodeSize=20, plot_only_solution=False, plot_robot=False)
+        # --- D. Background Plotting (Graph) ---
+        # Draw the underlying graph structure on the right axis (ax2)
+        plot_func = planner_factory[result.plannerFactoryName][2]
+        plot_func(
+            result.planner, 
+            result.solution, 
+            actions=actions, 
+            ax=ax2, 
+            nodeSize=node_size, 
+            plot_only_solution=False, 
+            plot_robot=False
+        )
 
-        # Draw Action Markers manually on ax2 (Right side)
+        # Draw Action Markers (PICK/PLACE) explicitly on ax2
         if actions:
             for step_idx, (act_type, _) in actions.items():
                 if step_idx < len(solution):
@@ -219,103 +264,125 @@ class IPAnimator:
                         pos = graph.nodes[node_id]['pos']
                         if act_type == "PICK":
                             ax2.plot(pos[0], pos[1], 's', color='lime', markersize=10, zorder=10)
-                            ax2.text(pos[0], pos[1]+0.5, 'PICK', color='green', fontsize=8, ha='center', bbox=dict(facecolor='white', alpha=0.6, pad=0.5))
+                            ax2.text(pos[0], pos[1]+0.5, 'PICK', color='green', fontsize=8, 
+                                     ha='center', bbox=dict(facecolor='white', alpha=0.6, pad=0.5))
                         elif act_type == "PLACE":
                             ax2.plot(pos[0], pos[1], 'X', color='red', markersize=10, zorder=10)
-                            ax2.text(pos[0], pos[1]+0.5, 'PLACE', color='red', fontsize=8, ha='center', bbox=dict(facecolor='white', alpha=0.6, pad=0.5))
+                            ax2.text(pos[0], pos[1]+0.5, 'PLACE', color='red', fontsize=8, 
+                                     ha='center', bbox=dict(facecolor='white', alpha=0.6, pad=0.5))
 
-        # Marker for current state
+        # Marker for current robot state on the graph
         current_pos_marker, = ax2.plot([], [], 'ro', markersize=8, zorder=10, label='Current')
         ax2.legend(loc='upper right')
 
-        # --- D. Animation Loop ---
+        # --- E. Animation Update Loop ---
         def update(frame):
-            # --- NEU: Progress Update ---
+            # Update Progress Bar
             if progress_widget:
                 progress_widget.value = frame + 1
                 progress_widget.description = f"{frame + 1}/{len(full_trajectory)}"
-            # -----------------------------
 
-            # 1. Update Workspace (Left)
+            # 1. Clear and Reset Left Axis (Task Space)
             ax1.clear()
-            # Reset properties after clear
-            ax1.set_xlim(limits_x)
-            ax1.set_ylim(limits_y)
+            ax1.set_xlim(limits[0])
+            ax1.set_ylim(limits[1])
             ax1.set_aspect('equal')
             ax1.grid(True, alpha=0.3)
             ax1.set_title(f"Step {frame}/{len(full_trajectory)}")
 
-            # Unpack: Config, HeldObject, WorldObject
+            # 2. Extract Frame Data
             config, held_obj, world_obj_poly = full_trajectory[frame]
 
-            # 1. CollisionChecker State setzen (für den Roboter)
+            # 3. Update Collision Checker State
             if held_obj is not None:
                 cc.attach_object(held_obj)
             else:
                 cc.detach_object()
 
-            # 2. Zeichnen
+            # 4. Draw Scene
             cc.drawObstacles(ax1)
-
-            # A) Roboter zeichnen (inkl. Held Object falls vorhanden)
+            
+            # Draw Robot (orange)
             cc.drawRobot(config, ax1, alpha=0.9, color='orange')
 
-            # B) Freies Objekt zeichnen (Falls es in der Welt liegt)
+            # Draw "Loose" Object in World (green)
             if world_obj_poly is not None:
                 ox, oy = world_obj_poly.exterior.xy
-                # Wir zeichnen das "loose" Objekt etwas dunkler/transparenter grün
-                ax1.fill(ox, oy, fc='lime', alpha=0.9, ec='black', linewidth=1, linestyle='-', label="Loose Object")
+                ax1.fill(ox, oy, fc='lime', alpha=0.9, ec='black', 
+                         linewidth=1, linestyle='-', label="Loose Object")
 
-            # 3. Update Graph Marker (Right)
+            # 5. Update Graph Marker (Right Axis)
             current_pos_marker.set_data([config[0]], [config[1]])
             
             return []
 
-        # E. Render
-        ani = FuncAnimation(fig, update, frames=len(full_trajectory), interval=interval, repeat_delay=1.0)
+        # Create Animation Object
+        ani = FuncAnimation(
+            fig, update, frames=len(full_trajectory), 
+            interval=interval, repeat_delay=1000
+        )
         return ani
     
-    
-    # --- NEUE UI METHODE ---
     @staticmethod
-    def create_interactive_viewer(plannerFactory, resultList, limits=[[-6, 6],[-6, 6]]):
+    def create_interactive_viewer(
+        planner_factory: Dict, 
+        result_list: List[Any], 
+        limits: List[List[float]] = [[-6, 6], [-6, 6]]
+    ) -> VBox:
         """
-        Creates and returns an interactive widget (VBox) to select, view, and save animations.
+        Creates an interactive Jupyter Widget to view and save animations.
+
+        Args:
+            planner_factory (dict): Dictionary of planner factories.
+            result_list (list): List of ResultCollection objects.
+            limits (list): Axis limits for visualization.
+
+        Returns:
+            VBox: A widget container holding the dropdowns and visual output.
         """
-        # 1. Daten vorbereiten
-        successful_results = [res for res in resultList if res.solution != []]
+        # 1. Filter valid results
+        successful_results = [res for res in result_list if res.solution]
         
         if not successful_results:
             print("No paths found to animate.")
             return VBox([Label("No successful paths found.")])
 
+        # Prepare Dropdown Options
         options = [("--- Nothing Selected ---", -1)] + \
-                  [(f"{res.plannerFactoryName} - {res.benchmark.name}", i) for i, res in enumerate(successful_results)]
+                  [(f"{res.plannerFactoryName} - {res.benchmark.name}", i) 
+                   for i, res in enumerate(successful_results)]
 
-        # 2. Widgets initialisieren
-        dropdown = Dropdown(options=options, value=-1, description='Result:', layout=Layout(width='50%'))
-        btn_save_mp4 = Button(description='Save .mp4', icon='save', disabled=True, button_style='info')
-        btn_save_gif = Button(description='Save .gif', icon='save', disabled=True, button_style='warning')
+        # 2. Initialize Widgets
+        dropdown = Dropdown(
+            options=options, 
+            value=-1, 
+            description='Result:', 
+            layout=Layout(width='50%')
+        )
+        btn_save_mp4 = Button(
+            description='Save .mp4', icon='save', 
+            disabled=True, button_style='info'
+        )
+        btn_save_gif = Button(
+            description='Save .gif', icon='save', 
+            disabled=True, button_style='warning'
+        )
 
-        # --- NEU: Progress Bar ---
         progress_bar = IntProgress(
-            value=0,
-            min=0,
-            max=100,
+            value=0, min=0, max=100,
             description='Idle',
-            bar_style='', # 'success', 'info', 'warning', 'danger' or ''
+            bar_style='', 
             orientation='horizontal',
             layout=Layout(width='100%')
         )
-        # -------------------------
         
         anim_output = Output()
         msg_output = Output()
 
-        # Mutable Container für das aktuelle Animationsobjekt (in Closure verfügbar machen)
+        # State container to hold the current animation object
         state = {'current_anim': None}
 
-        # 3. Callbacks definieren
+        # 3. Event Callbacks
         def on_selection_change(change):
             idx = change['new']
             
@@ -326,7 +393,8 @@ class IPAnimator:
             if idx == -1:
                 btn_save_mp4.disabled = True
                 btn_save_gif.disabled = True
-                with anim_output: print("Please select a result.")
+                with anim_output:
+                    print("Please select a result.")
                 return
 
             btn_save_mp4.disabled = True
@@ -335,55 +403,66 @@ class IPAnimator:
             res = successful_results[idx]
             
             with anim_output:
-                print("Calculating animation...")
-                # Animation erstellen
+                print("Calculating animation frames...")
                 try:
-                    ani = IPAnimator.animate_solution(plannerFactory, res, limits=limits, interval=75, step_size=0.5, progress_widget=progress_bar)
+                    ani = IPAnimator.animate_solution(
+                        planner_factory, res, limits=limits, 
+                        interval=75, step_size=0.5, 
+                        progress_widget=progress_bar
+                    )
                     state['current_anim'] = ani
 
                     clear_output(wait=True)
                     if ani:
-                        print("Rendering HTML (this takes time)...")
-                        # Der Progress Bar füllt sich während .to_jshtml() aufgerufen wird
+                        print("Rendering HTML JS (this may take a moment)...")
+                        # Rendering the JSHTML triggers the animation progress
                         display(HTML(ani.to_jshtml()))
                         
-                        # Wenn fertig:
                         progress_bar.bar_style = 'success'
                         progress_bar.description = 'Done'
                         
                         btn_save_mp4.disabled = False
                         btn_save_gif.disabled = False
                 except Exception as e:
-                    print(f"Error: {e}")
+                    print(f"Error during animation generation: {e}")
                     progress_bar.bar_style = 'danger'
 
         def save_file(b, fmt):
-            if state['current_anim'] is None: return
+            if state['current_anim'] is None:
+                return
+            
             idx = dropdown.value
             res = successful_results[idx]
-            filename = f"{datetime.datetime.now().strftime('%Y%m%d')}_{res.plannerFactoryName}_{res.benchmark.name}".replace(" ", "_") + f".{fmt}"
+            timestamp = datetime.datetime.now().strftime('%Y%m%d')
+            sanitized_name = f"{res.plannerFactoryName}_{res.benchmark.name}".replace(" ", "_")
+            filename = f"{timestamp}_{sanitized_name}.{fmt}"
             
             with msg_output:
                 print(f"Saving {filename}...")
             
             try:
                 if fmt == 'mp4':
+                    # Requires ffmpeg installed on the system
                     state['current_anim'].save(filename, writer='ffmpeg', dpi=100)
                 else:
+                    # Requires Pillow/ImageMagick
                     state['current_anim'].save(filename, writer='pillow', fps=15)
-                with msg_output: print(f"Saved: {filename}")
+                
+                with msg_output:
+                    print(f"Successfully saved: {filename}")
             except Exception as e:
-                with msg_output: print(f"Save Error: {e}")
+                with msg_output:
+                    print(f"Save Error: {e}")
 
-        # 4. Verknüpfung
+        # 4. Link Events
         dropdown.observe(on_selection_change, names='value')
         btn_save_mp4.on_click(lambda b: save_file(b, 'mp4'))
         btn_save_gif.on_click(lambda b: save_file(b, 'gif'))
 
-        # 5. UI zurückgeben (mit Progress Bar)
+        # 5. Assemble Layout
         return VBox([
             HBox([dropdown, btn_save_mp4, btn_save_gif]),
-            progress_bar, # <--- Hinzugefügt
+            progress_bar,
             msg_output,
             anim_output
         ])

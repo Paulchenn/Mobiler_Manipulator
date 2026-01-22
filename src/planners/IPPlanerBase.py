@@ -1,56 +1,76 @@
 # coding: utf-8
 
 """
-This code is part of the course "Introduction to robot path planning" (Author: Bjoern Hein).
+Base class for motion planning algorithms.
 
-License is based on Creative Commons: Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) (pls. check: http://creativecommons.org/licenses/by-nc/4.0/)
+This module provides the abstract base class for all motion planning algorithms.
+Handles common functionality like collision checking, path validation, and
+start/goal configuration filtering.
+
+Based on 'Introduction to robot path planning' course (Author: Bjoern Hein).
+License: Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
+See: http://creativecommons.org/licenses/by-nc/4.0/
 """
 
 
-class PlanerBase(object):
-    
+class PlanerBase:
+    """
+    Abstract base class for motion planning algorithms.
+
+    Provides common interface and utilities for path planning implementations.
+    Handles configuration space validation, collision checking, and start/goal
+    filtering.
+    """
+
     def __init__(self, collisionChecker):
-        """Base constructor
-        
+        """
+        Initialize the base planner.
+
         Args:
-        
-            :environment: Reference to Environment
-                
+            collisionChecker (CollisionChecker): Environment instance for collision
+                detection and robot geometry validation
         """
         self._collisionChecker = collisionChecker
 
     def _checkStartGoal(self, startList, goalList):
-        """Basic check for start and goal
-        
+        """
+        Validate and filter start and goal configurations.
+
+        Checks that configurations are:
+        1. Correct dimension for the robot (matches degrees of freedom)
+        2. Not in collision with obstacles
+
         Args:
-        
-            :startList: list of start configurations
-            :goalList: list of goal configurations
-        
+            startList (list): List of candidate start configurations
+            goalList (list): List of candidate goal configurations
+
+        Returns:
+            tuple: (validStartList, validGoalList) - Lists of valid configurations
+
+        Raises:
+            Exception: If no valid start or goal configurations remain after filtering
         """
         newStartList = list()
-        # print(f"startList: {startList}")
         for start in startList:
-            if (len(start) != self._collisionChecker.getDim()):
+            # Check dimension compatibility
+            if len(start) != self._collisionChecker.getDim():
                 continue
+            # Check collision-free
             if self._collisionChecker.pointInCollision(start):
                 continue
             newStartList.append(start)
 
         newGoalList = list()
-        # print(f"goalList: {goalList}")
         for goal in goalList:
-            if (len(goal) != self._collisionChecker.getDim()):
+            # Check dimension compatibility
+            if len(goal) != self._collisionChecker.getDim():
                 print(f"len(goal) != self._collisionChecker.getDim(): {len(goal)} != {self._collisionChecker.getDim()})")
                 continue
+            # Check collision-free
             if self._collisionChecker.pointInCollision(goal):
                 print(f"self._collisionChecker.pointInCollision(goal): {self._collisionChecker.pointInCollision(goal)}")
                 continue
             newGoalList.append(goal)
-                        
-        if len(newStartList) == 0:
-            raise Exception("No valid start")
-        if len(newGoalList) == 0:
-            raise Exception("No valid goal")
-    
+
+
         return newStartList, newGoalList

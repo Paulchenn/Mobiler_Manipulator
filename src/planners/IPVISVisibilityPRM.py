@@ -25,17 +25,17 @@ def visibilityPRMVisualize(planner, solution, actions, ax = None, nodeSize = 300
     final_keys = color.keys()#list(filtered_color.keys())
     final_values = color.values()#list(filtered_color.values())
 
-    print(final_values)
+    # print(final_values)
 
     object_shape = getattr(planner, 'objectShape', None)
 
     collChecker.drawObstacles(ax)
     
-    # if not plot_only_solution: #statsHandler:
-    #     statPos = nx.get_node_attributes(statsHandler.graph,'pos')
-    #     statPos_xy  = {k: v[:2] for k, v in statPos.items()}
-    #     nx.draw_networkx_nodes(statsHandler.graph, pos=statPos_xy, ax=ax, alpha=0.5, node_size=nodeSize)
-    #     nx.draw_networkx_edges(statsHandler.graph, pos=statPos_xy, ax=ax, alpha=0.1, width=0.2)#, edge_color='y')
+    if not plot_only_solution: #statsHandler:
+        statPos = nx.get_node_attributes(statsHandler.graph,'pos')
+        statPos_xy  = {k: v[:2] for k, v in statPos.items()}
+        nx.draw_networkx_nodes(statsHandler.graph, pos=statPos_xy, ax=ax, alpha=0.5, node_size=nodeSize)
+        nx.draw_networkx_edges(statsHandler.graph, pos=statPos_xy, ax=ax, alpha=0.1, width=0.2)#, edge_color='y')
         
     # draw graph 
     if not plot_only_solution:
