@@ -172,6 +172,16 @@ The LaTeX documentation covers:
 
 1. **Future Work:** Theoretical expansion to linear axes and trajectory smoothing.
 
+## 📁 Experiment Results
+
+The `runs/` directory contains timestamped results from previous experiments and evaluations. You can find example animated videos of simulation runs in the following folders:
+
+* **Standard Planning with Self-Collision:** `runs/20260119_SelfCheck`
+
+* **Pick-and-Place Tasks with Self-Collision:** `runs/20260120_pickPlace_SelfCheck`
+
+Each result folder also includes performance metrics, path data, and additional visualizations from the corresponding evaluation run.
+
 ## 👥 Authors & Acknowledgments
 
 Development: Paul Glaser, Tim Schaefer, Felix Wietschel (Students of the Master's program Robotics and AI in Production (HKA)).
